@@ -1402,12 +1402,12 @@ class format_site extends format_base {
 /**
  * 'Converts' a value from what is stored in the database into what is used by edit forms.
  */
-function contract_value(array &$dest, array $source, $option, $optionname) {
-    if (substr($optionname,-7) == '_editor') { // _editor indicates that the element is an editor.
+function contract_value(array &$dest, array $source, array $option, string $optionname) {
+    if (substr($optionname, -7) == '_editor') { // _editor indicates that the element is an editor.
         $name = substr($optionname, 0, -7);
         if (isset($source[$name])) {
             $dest[$optionname] = [
-                'text' => clean_param_if_not_null($source[$name], PARAM_RAW),
+                'text' => clean_param_if_not_null($source[$name], $option['type'] ?? PARAM_RAW),
                 'format' => clean_param_if_not_null($source[$name . 'format'], PARAM_INT),
             ];
         }
@@ -1428,11 +1428,16 @@ function clean_param_if_not_null($value, $type = PARAM_RAW) {
  * 'Converts' a value from what is used in edit forms into a value(s) to be stored in the database.
  */
 
-function expand_value(array &$dest, array $source, $option, $optionname) {
-    if (substr($optionname,-7) == '_editor') { // _editor indicates that the element is an editor.
-        $name = substr($optionname,0,-7);
-        $dest[$name]          = clean_param($source[$optionname]['text'], PARAM_RAW);
-        $dest[$name.'format'] = clean_param($source[$optionname]['format'], PARAM_INT);
+function expand_value(array &$dest, array $source, array $option, string $optionname) {
+    if (substr($optionname, -7) == '_editor') { // _editor indicates that the element is an editor.
+        $name = substr($optionname, 0, -7);
+        if (is_string($source[$optionname])) {
+            $dest[$name]          = clean_param($source[$optionname], $option['type'] ?? PARAM_RAW);
+            $dest[$name.'format'] = 1;
+        } else {
+            $dest[$name]          = clean_param($source[$optionname]['text'], $option['type'] ?? PARAM_RAW);
+            $dest[$name.'format'] = clean_param($source[$optionname]['format'], PARAM_INT);
+        }
         unset($dest[$optionname]);
     }
     else {
