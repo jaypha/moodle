@@ -662,15 +662,12 @@ abstract class format_base {
                               'format' => $this->format,
                               'sectionid' => $sectionid
                             ), '', 'id,name,value');
-                foreach ($records as $record) {
-                    if (array_key_exists($record->name, $this->formatoptions[$sectionid])) {
-                        $value = $record->value;
-                        if ($value !== null && isset($options[$record->name]['type'])) {
-                            // this will convert string value to number if needed
-                            $value = clean_param($value, $options[$record->name]['type']);
-                        }
-                        $this->formatoptions[$sectionid][$record->name] = $value;
-                    }
+
+                $indexedrecords = [];
+                foreach ($records as $record)
+                    $indexedrecords[$record->name] = $record->value;
+                foreach ($options as $optionname => $option) {
+                    contract_value($this->formatoptions[$sectionid], $indexedrecords, $option, $optionname);
                 }
             }
         }
@@ -765,7 +762,7 @@ abstract class format_base {
         $data = array_intersect_key($rawdata, $allformatoptions);
         foreach ($data as $key => $value) {
             $option = $allformatoptions[$key] + ['type' => PARAM_RAW, 'element_type' => null, 'element_attributes' => [[]]];
-            $data[$key] = clean_param($value, $option['type']);
+            expand_value($data, $data, $option, $key);
             if ($option['element_type'] === 'select' && !array_key_exists($data[$key], $option['element_attributes'][0])) {
                 // Value invalid for select element, skip.
                 unset($data[$key]);
@@ -814,6 +811,7 @@ abstract class format_base {
             if (array_key_exists('default', $option)) {
                 $defaultoptions[$key] = $option['default'];
             }
+            expand_value($defaultoptions, $defaultoptions, $option, $key);
             $cached[$key] = ($sectionid === 0 || !empty($option['cache']));
         }
         $records = $DB->get_records('course_format_options',
@@ -1398,5 +1396,46 @@ class format_site extends format_base {
      */
     public function allow_stealth_module_visibility($cm, $section) {
         return true;
+    }
+}
+
+/**
+ * 'Converts' a value from what is stored in the database into what is used by edit forms.
+ */
+function contract_value(array &$dest, array $source, $option, $optionname) {
+    if (substr($optionname,-7) == '_editor') { // _editor indicates that the element is an editor.
+        $name = substr($optionname, 0, -7);
+        if (isset($source[$name])) {
+            $dest[$optionname] = [
+                'text' => clean_param_if_not_null($source[$name], PARAM_RAW),
+                'format' => clean_param_if_not_null($source[$name . 'format'], PARAM_INT),
+            ];
+        }
+    } else {
+        if (isset($source[$optionname])) {
+            $dest[$optionname] = clean_param_if_not_null($source[$optionname], $option['type'] ?? PARAM_RAW);
+        }
+    }
+}
+
+function clean_param_if_not_null($value, $type = PARAM_RAW) {
+    if ($value === null)
+        return null;
+    else
+        return clean_param($value, $type);
+}
+/**
+ * 'Converts' a value from what is used in edit forms into a value(s) to be stored in the database.
+ */
+
+function expand_value(array &$dest, array $source, $option, $optionname) {
+    if (substr($optionname,-7) == '_editor') { // _editor indicates that the element is an editor.
+        $name = substr($optionname,0,-7);
+        $dest[$name]          = clean_param($source[$optionname]['text'], PARAM_RAW);
+        $dest[$name.'format'] = clean_param($source[$optionname]['format'], PARAM_INT);
+        unset($dest[$optionname]);
+    }
+    else {
+        $dest[$optionname] = clean_param($source[$optionname], $option['type'] ?? PARAM_RAW);
     }
 }
