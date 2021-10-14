@@ -664,8 +664,9 @@ abstract class format_base {
                             ), '', 'id,name,value');
 
                 $indexedrecords = [];
-                foreach ($records as $record)
+                foreach ($records as $record) {
                     $indexedrecords[$record->name] = $record->value;
+                }
                 foreach ($options as $optionname => $option) {
                     contract_value($this->formatoptions[$sectionid], $indexedrecords, $option, $optionname);
                 }
@@ -1401,9 +1402,14 @@ class format_site extends format_base {
 
 /**
  * 'Converts' a value from what is stored in the database into what is used by edit forms.
+ *
+ * @param array $dest The destination array
+ * @param array $source The source array
+ * @param array $option The definition structure of the option.
+ * @param string $optionname The name of the option, as provided in the definition.
  */
-function contract_value(array &$dest, array $source, array $option, string $optionname) {
-    if (substr($optionname, -7) == '_editor') { // _editor indicates that the element is an editor.
+function contract_value(array &$dest, array $source, array $option, string $optionname) : void {
+    if (substr($optionname, -7) == '_editor') { // Suffix '_editor' indicates that the element is an editor.
         $name = substr($optionname, 0, -7);
         if (isset($source[$name])) {
             $dest[$optionname] = [
@@ -1418,18 +1424,32 @@ function contract_value(array &$dest, array $source, array $option, string $opti
     }
 }
 
-function clean_param_if_not_null($value, $type = PARAM_RAW) {
-    if ($value === null)
+/**
+ * Cleans the given param, unless it is null.
+ *
+ * @param mixed $param The variable we are cleaning.
+ * @param string $type Expected format of param after cleaning.
+ * @return mixed Null if $param is null, otherwise the cleaned value.
+ * @throws coding_exception
+ */
+function clean_param_if_not_null($param, string $type = PARAM_RAW) {
+    if ($param === null) {
         return null;
-    else
-        return clean_param($value, $type);
+    } else {
+        return clean_param($param, $type);
+    }
 }
+
 /**
  * 'Converts' a value from what is used in edit forms into a value(s) to be stored in the database.
+ *
+ * @param array $dest The destination array
+ * @param array $source The source array
+ * @param array $option The definition structure of the option.
+ * @param string $optionname The name of the option, as provided in the definition.
  */
-
-function expand_value(array &$dest, array $source, array $option, string $optionname) {
-    if (substr($optionname, -7) == '_editor') { // _editor indicates that the element is an editor.
+function expand_value(array &$dest, array $source, array $option, string $optionname) : void {
+    if (substr($optionname, -7) == '_editor') { // Suffix '_editor' indicates that the element is an editor.
         $name = substr($optionname, 0, -7);
         if (is_string($source[$optionname])) {
             $dest[$name]          = clean_param($source[$optionname], $option['type'] ?? PARAM_RAW);
@@ -1439,8 +1459,7 @@ function expand_value(array &$dest, array $source, array $option, string $option
             $dest[$name.'format'] = clean_param($source[$optionname]['format'], PARAM_INT);
         }
         unset($dest[$optionname]);
-    }
-    else {
+    } else {
         $dest[$optionname] = clean_param($source[$optionname], $option['type'] ?? PARAM_RAW);
     }
 }
