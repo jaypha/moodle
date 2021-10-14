@@ -410,7 +410,9 @@ class backup_course_structure_step extends backup_structure_step {
         ));
 
         $courseformatoptions = new backup_nested_element('courseformatoptions');
-        $courseformatoption = new backup_nested_element('courseformatoption', array(), array('courseid', 'format', 'sectionid', 'name', 'value'));
+        $courseformatoption = new backup_nested_element('courseformatoption', array(),
+                array('courseid', 'format', 'sectionid', 'name', 'value')
+        );
 
         // attach format plugin structure to $course element, only one allowed
         $this->add_plugin_structure('format', $course, false);

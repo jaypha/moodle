@@ -1807,7 +1807,7 @@ class restore_course_structure_step extends restore_structure_step {
         $tag = new restore_path_element('tag', '/course/tags/tag');
         $customfield = new restore_path_element('customfield', '/course/customfields/customfield');
         $courseformatoptions = new restore_path_element('course_format_option', '/course/courseformatoptions/courseformatoption');
-        $allowed_module = new restore_path_element('allowed_module', '/course/allowed_modules/module');
+        $allowedmodule = new restore_path_element('allowed_module', '/course/allowed_modules/module');
 
         // Apply for 'format' plugins optional paths at course level
         $this->add_plugin_structure('format', $course);
@@ -1830,7 +1830,7 @@ class restore_course_structure_step extends restore_structure_step {
         // Apply for admin tool plugins optional paths at course level.
         $this->add_plugin_structure('tool', $course);
 
-        return array($course, $category, $tag, $customfield, $allowed_module, $courseformatoptions);
+        return array($course, $category, $tag, $customfield, $allowedmodule, $courseformatoptions);
     }
 
     /**
@@ -1982,24 +1982,21 @@ class restore_course_structure_step extends restore_structure_step {
     /**
      * Processes a course format option.
      *
-     * @param $data
+     * @param array $data The record being restored.
      * @throws base_step_exception
      * @throws dml_exception
      */
-    public function process_course_format_option($data) {
+    public function process_course_format_option(array $data) : void {
         global $DB;
 
         $courseid = $this->get_courseid();
-        $record = $DB->get_record('course_format_options', [ 'courseid'=>$courseid, 'name'=>$data['name'] ], 'id');
+        $record = $DB->get_record('course_format_options', [ 'courseid' => $courseid, 'name' => $data['name'] ], 'id');
         if ($record !== false) {
             $DB->update_record('course_format_options', [ 'id' => $record->id, 'value' => $data['value'] ]);
-        }
-        else {
+        } else {
             $data['courseid'] = $courseid;
             $DB->insert_record('course_format_options', $data);
         }
-
-
     }
 
     public function process_allowed_module($data) {
