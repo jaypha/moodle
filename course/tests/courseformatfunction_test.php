@@ -18,7 +18,8 @@
  * Course related unit tests
  *
  * @package    core_course
- * @copyright  2014 Marina Glancy
+ * @copyright  2021 Catalyst IT Pty Ltd
+ * @author     Jason den Dulk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

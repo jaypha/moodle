@@ -1407,6 +1407,7 @@ class format_site extends format_base {
  * @param array $source The source array
  * @param array $option The definition structure of the option.
  * @param string $optionname The name of the option, as provided in the definition.
+ * @author Jason den Dulk
  */
 function contract_value(array &$dest, array $source, array $option, string $optionname) : void {
     if (substr($optionname, -7) == '_editor') { // Suffix '_editor' indicates that the element is an editor.
@@ -1431,6 +1432,7 @@ function contract_value(array &$dest, array $source, array $option, string $opti
  * @param string $type Expected format of param after cleaning.
  * @return mixed Null if $param is null, otherwise the cleaned value.
  * @throws coding_exception
+ * @author Jason den Dulk
  */
 function clean_param_if_not_null($param, string $type = PARAM_RAW) {
     if ($param === null) {
@@ -1447,6 +1449,7 @@ function clean_param_if_not_null($param, string $type = PARAM_RAW) {
  * @param array $source The source array
  * @param array $option The definition structure of the option.
  * @param string $optionname The name of the option, as provided in the definition.
+ * @author Jason den Dulk
  */
 function expand_value(array &$dest, array $source, array $option, string $optionname) : void {
     if (substr($optionname, -7) == '_editor') { // Suffix '_editor' indicates that the element is an editor.
