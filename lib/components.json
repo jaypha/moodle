@@ -55,7 +55,7 @@
         "antivirus": "lib\/antivirus",
         "auth": "auth",
         "availability": "availability",
-        "backup": "backup\/util\/ui",
+        "backup": "backup",
         "badges": "badges",
         "block": "blocks",
         "blog": "blog",
