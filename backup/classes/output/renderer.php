@@ -22,6 +22,25 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+namespace core_backup\output;
+
+use backup;
+use renderable;
+use image_icon;
+use moodle_url;
+use html_table;
+use html_writer;
+use single_button;
+use context_course;
+use html_table_row;
+use html_table_cell;
+use context_coursecat;
+use import_course_search;
+use plugin_renderer_base;
+use backup_general_helper;
+use restore_course_search;
+use restore_category_search;
+
 defined('MOODLE_INTERNAL') || die;
 
 global $CFG;
@@ -41,7 +60,7 @@ require_once($CFG->dirroot . '/backup/moodle2/backup_plan_builder.class.php');
  * @copyright 2010 Sam Hemelryk
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class core_backup_renderer extends plugin_renderer_base {
+class renderer extends plugin_renderer_base {
 
     /**
      * Same site notification display.

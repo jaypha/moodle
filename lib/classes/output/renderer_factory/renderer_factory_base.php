@@ -205,6 +205,17 @@ abstract class renderer_factory_base implements renderer_factory_interface {
                 'autoloaded' => false,
                 'classname' => $component . '_' . $subtype . '_renderer',
             ];
+
+            // Add classnames for 'core_<subtype>' namespaces.
+            if ($component === 'core') {
+                // Standard autoloaded plugin name (not valid with a prefix).
+                $classnames[] = [
+                    'validwithprefix' => false,
+                    'validwithoutprefix' => true,
+                    'autoloaded' => true,
+                    'classname' => '\\' . $component . '_' . $subtype . '\\output\\renderer',
+                ];
+            }
         }
         return $classnames;
     }
