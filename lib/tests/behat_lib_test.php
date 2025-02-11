@@ -23,6 +23,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use Moodle\BehatExtension\Driver\WebDriver;
+
 /**
  * Unit tests for parts of /lib/behat/lib.php.
  *
@@ -92,5 +94,15 @@ final class behat_lib_test extends advanced_testcase {
             // Test for url that does not match with environment.
             ['http://behat.moodle.org', false, ['moodle.org', 80, '']],
         ];
+    }
+
+    /**
+     * Tests that calling stop() when the webDriver property is not set will not cause an error. See MDL-84498.
+     */
+    public function test_stop_without_driver() {
+        $driver = new WebDriver();
+        $driver->stop();
+        // Any dummy assertion will do. The test is that it makes it here without crashing.
+        $this->assertEquals(1,1);
     }
 }
