@@ -95,8 +95,6 @@ If cluster mode is enabled, specify servers separated by a new line, for example
 For further information, see <a href="https://redis.io/docs/reference/clients/#accepting-client-connections">Accepting Client Connections</a> and <a href="https://redis.io/resources/clients/#php">Redis PHP clients</a>.';
 $string['test_ttl'] = 'Testing TTL';
 $string['test_ttl_desc'] = 'Run the performance test using a cache that requires TTL (slower sets).';
-$string['usecompressor'] = 'Use compressor';
-$string['usecompressor_help'] = 'Specifies the compressor to use after serializing. It is done at Moodle Cache API level, not at php-redis level.';
 $string['useserializer'] = 'Use serializer';
 $string['useserializer_help'] = 'Specifies the serializer to use for serializing.
 The valid serializers are Redis::SERIALIZER_PHP or Redis::SERIALIZER_IGBINARY.
