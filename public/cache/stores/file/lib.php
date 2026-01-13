@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+use core_cache\local\compression;
 use core_cache\configurable_cache_interface;
 use core_cache\definition;
 use core_cache\key_aware_cache_interface;
@@ -39,6 +40,8 @@ class cachestore_file extends store implements
     searchable_cache_interface,
     lockable_cache_interface
 {
+    use compression;
+
     /**
      * Value to represent use of the PHP serializer.
      */
@@ -271,6 +274,12 @@ class cachestore_file extends store implements
         if (array_key_exists('serializer', $configuration)) {
             $this->serializer = (string)$configuration['serializer'];
         }
+
+        // Set the compression method.
+        if (array_key_exists('compressor', $configuration)) {
+            $this->compressor = (int)$configuration['compressor'];
+        }
+
     }
 
     /**
@@ -595,7 +604,7 @@ class cachestore_file extends store implements
      * @return string
      */
     protected function prep_data_before_save($data) {
-        return $this->serialize($data);
+        return $this->compress($this->serialize($data));
     }
 
     /**
@@ -606,10 +615,12 @@ class cachestore_file extends store implements
      * @return mixed
      */
     protected function prep_data_after_read($data, $path) {
-        $result = @$this->unserialize($data);
-        if ($result === false && $data != @$this->serialize(false)) {
-            debugging('Failed to unserialise data from cache file: ' . $path . '. Data: ' . $data, DEBUG_DEVELOPER);
-            return false;
+        $result = @$this->unserialize($this->uncompress($data));
+        if ($result === false) {
+            if ($data != $this->prep_data_before_save(false)) {
+                debugging('Failed to unserialise data from cache file: ' . $path . '. Data: ' . $data, DEBUG_DEVELOPER);
+                return false;
+            }
         }
         return $result;
     }
@@ -769,6 +780,9 @@ class cachestore_file extends store implements
         if (isset($data->serializer)) {
             $config['serializer'] = $data->serializer;
         }
+        if (isset($data->compressor)) {
+            $config['compressor'] = $data->compressor;
+        }
 
         return $config;
     }
@@ -801,6 +815,9 @@ class cachestore_file extends store implements
         }
         if (isset($config['serializer'])) {
             $data['serializer'] = (string)$config['serializer'];
+        }
+        if (isset($config['compressor'])) {
+            $data['compressor'] = (int) $config['compressor'];
         }
         $editform->set_data($data);
     }

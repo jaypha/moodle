@@ -59,5 +59,7 @@ class cachestore_file_addinstance_form extends cachestore_addinstance_form {
         $form->setDefault('serializer', cachestore_file::SERIALIZER_PHP);
         $form->setType('serializer', PARAM_ALPHA);
         $form->addHelpButton('serializer', 'useserializer', 'cachestore_file');
+
+        cachestore_file::add_compression_edit_form_elements($form);
     }
 }

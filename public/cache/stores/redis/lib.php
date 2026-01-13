@@ -20,6 +20,7 @@ use core_cache\key_aware_cache_interface;
 use core_cache\lockable_cache_interface;
 use core_cache\searchable_cache_interface;
 use core_cache\store;
+use core_cache\local\compression;
 use core\clock;
 use core\di;
 use core\shutdown_manager;
@@ -43,20 +44,7 @@ class cachestore_redis extends store implements
     searchable_cache_interface,
     lockable_cache_interface
 {
-    /**
-     * Compressor: none.
-     */
-    const COMPRESSOR_NONE = 0;
-
-    /**
-     * Compressor: PHP GZip.
-     */
-    const COMPRESSOR_PHP_GZIP = 1;
-
-    /**
-     * Compressor: PHP Zstandard.
-     */
-    const COMPRESSOR_PHP_ZSTD = 2;
+    use compression;
 
     /**
      * @var string Suffix used on key name (for hash) to store the TTL sorted list
@@ -448,7 +436,7 @@ class cachestore_redis extends store implements
         // When using compression, values are always strings, so strlen will work.
         $this->lastiobytes = strlen($value);
 
-        return $this->uncompress($value);
+        return $this->prep_data_after_read($value);
     }
 
     /**
@@ -467,10 +455,34 @@ class cachestore_redis extends store implements
         $this->lastiobytes = 0;
         foreach ($values as &$value) {
             $this->lastiobytes += strlen($value);
-            $value = $this->uncompress($value);
+            $value = $this->prep_data_after_read($value);
         }
 
         return $values;
+    }
+
+    /**
+     * Prepares data to be stored in a file.
+     *
+     * @param mixed $data
+     * @return false|string
+     */
+    protected function prep_data_before_save($data) {
+        return $this->compress($this->serialize($data));
+    }
+
+    /**
+     * Prepares the data it has been read from the cache. Undoing what was done in prep_data_before_save.
+     *
+     * @param string $data
+     * @return mixed
+     */
+    protected function prep_data_after_read($data) {
+        $value = $this->uncompress($data);
+        if ($value === false) {
+            return false;
+        }
+        return $this->unserialize($value);
     }
 
     /**
@@ -501,7 +513,7 @@ class cachestore_redis extends store implements
      */
     public function set($key, $value) {
         if ($this->compressor != self::COMPRESSOR_NONE) {
-            $value = $this->compress($value);
+            $value = $this->prep_data_before_save($value);
             $this->lastiobytes = strlen($value);
         }
 
@@ -538,7 +550,7 @@ class cachestore_redis extends store implements
         foreach ($keyvaluearray as $pair) {
             $key = $pair['key'];
             if ($this->compressor != self::COMPRESSOR_NONE) {
-                $pairs[$key] = $this->compress($pair['value']);
+                $pairs[$key] = $this->prep_data_before_save($pair['value']);
                 $this->lastiobytes += strlen($pairs[$key]);
             } else {
                 $pairs[$key] = $pair['value'];
@@ -884,7 +896,7 @@ class cachestore_redis extends store implements
             return parent::estimate_stored_size($key, $value);
         } else {
             // If compressed, compress value.
-            return strlen($this->serialize($key)) + strlen($this->compress($value));
+            return strlen($this->serialize($key)) + strlen($this->prep_data_before_save($value));
         }
     }
 
@@ -1050,77 +1062,6 @@ class cachestore_redis extends store implements
             $options[Redis::SERIALIZER_IGBINARY] = get_string('serializer_igbinary', 'cachestore_redis');
         }
         return $options;
-    }
-
-    /**
-     * Gets an array of options to use as the compressor.
-     *
-     * @return array
-     */
-    public static function config_get_compressor_options() {
-        $arr = [
-            self::COMPRESSOR_NONE     => get_string('compressor_none', 'cachestore_redis'),
-            self::COMPRESSOR_PHP_GZIP => get_string('compressor_php_gzip', 'cachestore_redis'),
-        ];
-
-        // Check if the Zstandard PHP extension is installed.
-        if (extension_loaded('zstd')) {
-            $arr[self::COMPRESSOR_PHP_ZSTD] = get_string('compressor_php_zstd', 'cachestore_redis');
-        }
-
-        return $arr;
-    }
-
-    /**
-     * Compress the given value, serializing it first.
-     *
-     * @param mixed $value
-     * @return string
-     */
-    private function compress($value) {
-        $value = $this->serialize($value);
-
-        switch ($this->compressor) {
-            case self::COMPRESSOR_NONE:
-                return $value;
-
-            case self::COMPRESSOR_PHP_GZIP:
-                return gzencode($value);
-
-            case self::COMPRESSOR_PHP_ZSTD:
-                return zstd_compress($value);
-
-            default:
-                debugging("Invalid compressor: {$this->compressor}");
-                return $value;
-        }
-    }
-
-    /**
-     * Uncompresses (deflates) the data, unserialising it afterwards.
-     *
-     * @param string $value
-     * @return mixed
-     */
-    private function uncompress($value) {
-        if ($value === false) {
-            return false;
-        }
-
-        switch ($this->compressor) {
-            case self::COMPRESSOR_NONE:
-                break;
-            case self::COMPRESSOR_PHP_GZIP:
-                $value = gzdecode($value);
-                break;
-            case self::COMPRESSOR_PHP_ZSTD:
-                $value = zstd_uncompress($value);
-                break;
-            default:
-                debugging("Invalid compressor: {$this->compressor}");
-        }
-
-        return $this->unserialize($value);
     }
 
     /**
