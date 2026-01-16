@@ -1,0 +1,11 @@
+issueNumber: MDL-83532
+notes:
+  core:
+    - message: >-
+        Improved times for course completion checks.
+        Added 'completion_completion_notify_time_window' CFG value.
+        Separated criteria checks from completion_regular_task into
+        their own tasks (completion_criteria_*_check_task, where * is the criteria type).
+        Added 'completion_criteria_*_check_lasttime' CFG values.
+        Added completion_criteria_check_full_check_task ad-hoc task.
+      type: improved

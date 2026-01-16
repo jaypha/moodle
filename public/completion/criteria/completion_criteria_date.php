@@ -145,43 +145,50 @@ class completion_criteria_date extends completion_criteria {
     }
 
     /**
-     * Find user's who have completed this criteria
+     * Find user's who have completed this criteria.
+     *
+     * @param array $constraints Extra constraints to place in the search.
      */
-    public function cron() {
+    public function cron(array $constraints = []) {
         global $DB;
 
-        // Get all users who match meet this criteria
-        $sql = '
-            SELECT DISTINCT
-                c.id AS course,
-                cr.timeend AS timeend,
-                cr.id AS criteriaid,
-                ra.userid AS userid
-            FROM
-                {course_completion_criteria} cr
-            INNER JOIN
-                {course} c
-             ON cr.course = c.id
-            INNER JOIN
-                {context} con
-             ON con.instanceid = c.id
-            INNER JOIN
-                {role_assignments} ra
-             ON ra.contextid = con.id
-            LEFT JOIN
-                {course_completion_crit_compl} cc
-             ON cc.criteriaid = cr.id
-            AND cc.userid = ra.userid
-            WHERE
-                cr.criteriatype = '.COMPLETION_CRITERIA_TYPE_DATE.'
-            AND con.contextlevel = '.CONTEXT_COURSE.'
-            AND c.enablecompletion = 1
-            AND cc.id IS NULL
-            AND cr.timeend < ?
-        ';
+        $timefrom = $constraints['timefrom'] ?? null;
+        $courseid = $constraints['courseid'] ?? null;
 
-        // Loop through completions, and mark as complete
-        $rs = $DB->get_recordset_sql($sql, array(time()));
+        // Get all users who match meet this criteria.
+        $sql = "SELECT DISTINCT c.id AS course,
+                                cr.timeend AS timeend,
+                                cr.id AS criteriaid,
+                                ra.userid AS userid
+                           FROM {course_completion_criteria} cr
+                           JOIN {course} c ON cr.course = c.id
+                           JOIN {context} con ON con.instanceid = c.id
+                           JOIN {role_assignments} ra ON ra.contextid = con.id
+                      LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = ra.userid
+                          WHERE cr.criteriatype = :criteriatype
+                            AND con.contextlevel = :contextlevel
+                            AND c.enablecompletion = 1
+                            AND cc.id IS NULL
+                            AND cr.timeend < :timeend";
+
+        $params = [
+            'criteriatype' => COMPLETION_CRITERIA_TYPE_DATE,
+            'contextlevel' => CONTEXT_COURSE,
+            'timeend' => time(),
+        ];
+
+        if (!is_null($timefrom)) {
+            $sql .= " AND cr.timeend >= :timefrom";
+            $params['timefrom'] = $timefrom;
+        }
+
+        if (!is_null($courseid)) {
+            $sql .= " AND c.id = :courseid";
+            $params['courseid'] = $courseid;
+        }
+
+        // Loop through completions, and mark as complete.
+        $rs = $DB->get_recordset_sql($sql, $params);
         foreach ($rs as $record) {
             $completion = new completion_criteria_completion((array) $record, DATA_OBJECT_FETCH_BY_KEY);
             $completion->mark_complete($record->timeend);

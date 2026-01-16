@@ -24,6 +24,8 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core\task\completion_criteria_course_check_task;
+
 defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot.'/completion/data_object.php');
 
@@ -156,57 +158,71 @@ class completion_completion extends data_object {
      * @return  int|null id of completion record on successful update.
      */
     public function mark_complete($timecomplete = null) {
-        global $USER;
+        global $CFG;
 
         // Never change a completion time.
         if ($this->timecompleted) {
             return null;
         }
 
+        $now = \core\di::get(\core\clock::class)->time();
+
         // Use current time if nothing supplied.
         if (!$timecomplete) {
-            $timecomplete = time();
+            $timecomplete = $now;
         }
 
         // Set time complete.
         $this->timecompleted = $timecomplete;
         // Save record.
         if ($result = $this->_save()) {
+            // Create an adhoc task to check any course completion criteria that depends on this course.
+            $task = new completion_criteria_course_check_task();
+            $task->set_custom_data(['userid' => $this->userid, 'courseinstance' => $this->course]);
+            \core\task\manager::queue_adhoc_task($task);
+
             $data = $this->get_record_data();
             \core\event\course_completed::create_from_completion($data)->trigger();
         }
 
         // Notify user.
-        $course = get_course($data->course);
-        $messagesubject = get_string('coursecompleted', 'completion');
-        $options = new stdClass();
-        $options->context = context_course::instance($course->id);
-        $a = [
-            'coursename' => format_string(get_course_display_name_for_list($course), true, $options),
-            'courselink' => (string) new moodle_url('/course/view.php', array('id' => $course->id)),
-        ];
-        $messagebody = get_string('coursecompletedmessage', 'completion', $a);
-        $messageplaintext = html_to_text($messagebody);
+        // Only notify if the completion occured within a certain time window of the past.
+        // e.g. In the last 3 days (259200 sec).
 
-        $eventdata = new \core\message\message();
-        $eventdata->courseid          = $course->id;
-        $eventdata->component         = 'moodle';
-        $eventdata->name              = 'coursecompleted';
-        $eventdata->userfrom          = core_user::get_noreply_user();
-        $eventdata->userto            = $data->userid;
-        $eventdata->notification      = 1;
-        $eventdata->subject           = $messagesubject;
-        $eventdata->fullmessage       = $messageplaintext;
-        $eventdata->fullmessageformat = FORMAT_HTML;
-        $eventdata->fullmessagehtml   = $messagebody;
-        $eventdata->smallmessage      = $messageplaintext;
-
-        if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
-            $eventdata->customdata  = [
-                'notificationpictureurl' => $courseimage,
+        // Default to one week if it is not set in the config.
+        $timewindow = $CFG->completion_completion_notify_time_window ?? WEEKSECS;
+        if (!$timewindow || $timecomplete > ($now - $timewindow)) {
+            $course = get_course($data->course);
+            $messagesubject = get_string('coursecompleted', 'completion');
+            $options = new stdClass();
+            $options->context = context_course::instance($course->id);
+            $a = [
+                'coursename' => format_string(get_course_display_name_for_list($course), true, $options),
+                'courselink' => (string)new moodle_url('/course/view.php', ['id' => $course->id]),
             ];
+            $messagebody = get_string('coursecompletedmessage', 'completion', $a);
+            $messageplaintext = html_to_text($messagebody);
+
+            $eventdata = new \core\message\message();
+            $eventdata->courseid = $course->id;
+            $eventdata->component = 'moodle';
+            $eventdata->name = 'coursecompleted';
+            $eventdata->userfrom = core_user::get_noreply_user();
+            $eventdata->userto = $data->userid;
+            $eventdata->notification = 1;
+            $eventdata->subject = $messagesubject;
+            $eventdata->fullmessage = $messageplaintext;
+            $eventdata->fullmessageformat = FORMAT_HTML;
+            $eventdata->fullmessagehtml = $messagebody;
+            $eventdata->smallmessage = $messageplaintext;
+
+            if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
+                $eventdata->customdata = [
+                    'notificationpictureurl' => $courseimage,
+                ];
+            }
+            message_send($eventdata);
         }
-        message_send($eventdata);
 
         return $result;
     }

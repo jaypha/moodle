@@ -158,6 +158,33 @@ $tasks = array(
         'dayofweek' => '*',
         'month' => '*'
     ),
+    [
+        'classname' => 'core\task\completion_criteria_activity_check_task',
+        'blocking' => 0,
+        'minute' => '*',
+        'hour' => '*',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
+    [
+        'classname' => 'core\task\completion_criteria_date_check_task',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '1',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
+    [
+        'classname' => 'core\task\completion_criteria_duration_check_task',
+        'blocking' => 0,
+        'minute' => '*/5',
+        'hour' => '*',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
     array(
         'classname' => 'core\task\completion_daily_task',
         'blocking' => 0,
