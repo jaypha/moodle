@@ -136,17 +136,14 @@ class api {
         // Get all users who meet this criteria
         $sql = "SELECT DISTINCT c.id AS course,
                                 cr.id AS criteriaid,
-                                ra.userid AS userid,
+                                mc.userid AS userid,
                                 mc.timemodified AS timecompleted
                   FROM {course_completion_criteria} cr
             INNER JOIN {course} c ON cr.course = c.id
-            INNER JOIN {context} con ON con.instanceid = c.id
-            INNER JOIN {role_assignments} ra ON ra.contextid = con.id
             INNER JOIN {course_modules} cm ON cm.id = cr.moduleinstance
-            INNER JOIN {course_modules_completion} mc ON mc.coursemoduleid = cr.moduleinstance AND mc.userid = ra.userid
-             LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = ra.userid
+            INNER JOIN {course_modules_completion} mc ON mc.coursemoduleid = cr.moduleinstance
+             LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = mc.userid
                  WHERE cr.criteriatype = :criteriatype
-                       AND con.contextlevel = :contextlevel
                        AND c.enablecompletion = 1
                        AND cc.id IS NULL
                        AND (
@@ -168,7 +165,7 @@ class api {
         if ($userdata) {
             $params['courseid'] = $userdata['courseid'];
             $params['userid'] = $userdata['userid'];
-            $sql .= " AND c.id = :courseid AND ra.userid = :userid";
+            $sql .= " AND c.id = :courseid AND mc.userid = :userid";
             // Mark as complete.
             $record = $DB->get_record_sql($sql, $params);
             if ($record) {

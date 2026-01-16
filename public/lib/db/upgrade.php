@@ -1740,5 +1740,39 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2026021000.01);
     }
 
+    if ($oldversion < 2026021000.01) {
+        mtrace("About to run cron completion update with updated SQL conditions. Notifications have been disabled temporarily to stop old completion notifications being emitted.");
+
+        // First disable all site messaging & emails.
+        // We are about to trigger potentially a lot of notifications for really old course completions,
+        // which we don't want to send out.
+        $CFG->noemeailever = 1;
+
+        // Disable all message apis as well (record which ones were enabled, to re-enable afterwards).
+        $enabledprocessors = $DB->get_records('message_processors', ['enabled' => 1]);
+        $DB->execute('UPDATE {message_processors} SET enabled =  0');
+
+        // Run completion cron.
+        // This is specifically to run mark_course_completions_activity_criteria(),
+        // but we also want to run the rest of the completion cron as the records
+        // created from that function may trigger a cascade of other notifications from
+        // other places in the completion api.
+        $task = new \core\task\completion_regular_task();
+        $task->execute();
+
+        // It must be run twice, due to the internal ordering of the functions.
+        // (first run creates record, second run notifies usually).
+        $task = new \core\task\completion_regular_task();
+        $task->execute();
+
+        // Re-enable messaging & emails.
+        $CFG->noemeailever = 0;
+        [$insql, $inparams] = $DB->get_in_or_equal(array_column($enabledprocessors, 'id'));
+        $DB->execute('UPDATE {message_processors} SET enabled = 1 WHERE id ' . $insql, $inparams);
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2026021000.01);
+    }
+
     return true;
 }
