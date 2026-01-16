@@ -28,6 +28,8 @@ define('CLI_SCRIPT', true);
 
 require(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/clilib.php');
+require_once($CFG->dirroot . '/backup/util/interfaces/checksumable.class.php');
+require_once($CFG->dirroot . '/backup/backup.class.php');
 
 list($options, $unrecognized) = cli_get_params(
     [

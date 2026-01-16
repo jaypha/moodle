@@ -1,0 +1,9 @@
+issueNumber: MDL-83532
+notes:
+  core:
+    - message: >-
+        Improved times for course completion task. Added
+        'completion_completion_notify_time_window' CFG value.
+        Added 'last_completion_regular_task_run' CFG value.
+        Added completion_regular_task_adhoc ad-hoc task.
+      type: improved

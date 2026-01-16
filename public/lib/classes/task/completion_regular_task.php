@@ -14,21 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * A scheduled task.
- *
- * @package    core
- * @copyright  2015 Josh Willcock
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
 namespace core\task;
 
+use core\exception\moodle_exception;
+
 /**
- * Simple task to run the regular completion cron.
+ * Simple task to run the regular completion cron. Will process any completion criteria that have
+ * been met since the last run.
+ *
+ * @package    core
  * @copyright  2015 Josh Willcock
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
 class completion_regular_task extends scheduled_task {
+    use completion_regular_task_trait;
 
     /**
      * Get a descriptive name for this task (shown to admins).
@@ -44,28 +43,30 @@ class completion_regular_task extends scheduled_task {
      * Throw exceptions on errors (the job will be retried).
      */
     public function execute() {
-        global $CFG, $COMPLETION_CRITERIA_TYPES, $DB;
-
+        global $CFG;
         if ($CFG->enablecompletion) {
-            require_once($CFG->libdir . "/completionlib.php");
 
-            // Process each criteria type.
-            foreach ($COMPLETION_CRITERIA_TYPES as $type) {
-                $object = 'completion_criteria_' . $type;
-                require_once($CFG->dirroot . '/completion/criteria/' . $object . '.php');
-
-                $class = new $object();
-                // Run the criteria type's cron method, if it has one.
-                if (method_exists($class, 'cron')) {
-                    if (debugging()) {
-                        mtrace('Running '.$object.'->cron()');
-                    }
-                    $class->cron();
-                }
+            // We only want completions performed since the last task run. We need the start time so there are no
+            // gaps.
+            $laststarttime = get_config('core', 'last_completion_regular_task_run');
+            if ($laststarttime) {
+                // We prefer to get the actual start time for the previous run, which we can get from the config, if
+                // available. We subtract 1, just to be sure there are no gaps.
+                $timefrom = $laststarttime - 1;
+            } else {
+                // We don't know the start time. So set the time to an hour before the last run (finish time) to
+                // minimise the chance of a gap.
+                $timefrom = $this->get_last_run_time() - HOURSECS;
+            }
+            // This would only happen when there are no previous runs.
+            if ($timefrom <= 0) {
+                $timefrom = null;
             }
 
+            $this->perform_regular_completion(['timefrom' => $timefrom]);
             aggregate_completions(0, true);
+
+            set_config('last_completion_regular_task_run', $this->get_timestarted());
         }
     }
-
 }

@@ -90,6 +90,13 @@ if ($form->is_cancelled()){
     if (!empty($data->settingsunlock)) {
         $completion->delete_course_completion_data();
 
+        // Schedule completion regular ad-hoc task for this course.
+        $task = new \core\task\completion_regular_task_adhoc();
+        $task->set_custom_data([
+            'constraints' => ['courseid' => $id],
+        ]);
+        \core\task\manager::queue_adhoc_task($task, true);
+
         // Return to form (now unlocked).
         redirect($PAGE->url);
     }
@@ -143,6 +150,13 @@ if ($form->is_cancelled()){
     $aggregation = new completion_aggregation($aggdata);
     $aggregation->setMethod($data->role_aggregation);
     $aggregation->save();
+
+    // Schedule completion regular ad-hoc task for this course to process the updated criteria.
+    $task = new \core\task\completion_regular_task_adhoc();
+    $task->set_custom_data([
+        'constraints' => ['courseid' => $id],
+    ]);
+    \core\task\manager::queue_adhoc_task($task, true);
 
     // Trigger an event for course module completion changed.
     $event = \core\event\course_completion_updated::create(

@@ -1451,6 +1451,7 @@ $string['taskcachefilepoolusage'] = 'Cache file pool disk usage';
 $string['taskcalendarcron'] = 'Send calendar notifications';
 $string['taskcheckforupdates'] = 'Check for updates';
 $string['taskcompletionregular'] = 'Calculate regular completion data';
+$string['taskcompletionregular_adhoc'] = 'Calculate regular completion data (ad-hoc)';
 $string['taskcompletiondaily'] = 'Completion mark as started';
 $string['taskcontextcleanup'] = 'Cleanup contexts';
 $string['entitytasklog'] = 'Task log';
