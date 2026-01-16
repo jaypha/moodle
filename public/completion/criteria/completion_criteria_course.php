@@ -156,42 +156,24 @@ class completion_criteria_course extends completion_criteria {
 
         global $DB;
 
-        // Get all users who meet this criteria
-        $sql = "
-            SELECT DISTINCT
-                c.id AS course,
-                cr.id AS criteriaid,
-                ra.userid AS userid,
-                cc.timecompleted AS timecompleted
-            FROM
-                {course_completion_criteria} cr
-            INNER JOIN
-                {course} c
-             ON cr.course = c.id
-            INNER JOIN
-                {context} con
-             ON con.instanceid = c.id
-            INNER JOIN
-                {role_assignments} ra
-              ON ra.contextid = con.id
-            INNER JOIN
-                {course_completions} cc
-             ON cc.course = cr.courseinstance
-            AND cc.userid = ra.userid
-            LEFT JOIN
-                {course_completion_crit_compl} ccc
-             ON ccc.criteriaid = cr.id
-            AND ccc.userid = ra.userid
-            WHERE
-                cr.criteriatype = ".COMPLETION_CRITERIA_TYPE_COURSE."
-            AND con.contextlevel = ".CONTEXT_COURSE."
-            AND c.enablecompletion = 1
-            AND ccc.id IS NULL
-            AND cc.timecompleted IS NOT NULL
-        ";
+        // Get all users who meet this criteria.
+        $sql = "SELECT DISTINCT c.id AS course,
+                                cr.id AS criteriaid,
+                                cc.userid AS userid,
+                                cc.timecompleted AS timecompleted
+                           FROM {course_completion_criteria} cr
+                           JOIN {course} c ON cr.course = c.id
+                           JOIN {course_completions} cc ON cc.course = cr.courseinstance
+                      LEFT JOIN {course_completion_crit_compl} ccc ON ccc.criteriaid = cr.id AND ccc.userid = cc.userid
+                          WHERE cr.criteriatype = :criteriatype
+                            AND c.enablecompletion = 1
+                            AND ccc.id IS NULL
+                            AND cc.timecompleted IS NOT NULL";
+
+        $params = ['criteriatype' => COMPLETION_CRITERIA_TYPE_COURSE];
 
         // Loop through completions, and mark as complete
-        $rs = $DB->get_recordset_sql($sql);
+        $rs = $DB->get_recordset_sql($sql, $params);
         foreach ($rs as $record) {
             $completion = new completion_criteria_completion((array) $record, DATA_OBJECT_FETCH_BY_KEY);
             $completion->mark_complete($record->timecompleted);
