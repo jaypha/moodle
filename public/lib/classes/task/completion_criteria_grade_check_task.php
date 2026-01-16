@@ -17,31 +17,29 @@
 namespace core\task;
 
 /**
- * Simple task to aggregate course completions.
+ * Ad-hoc task to perform a grade completion criteria check whenever a course is marked as complete for a user.
  *
- * @package    core
- * @copyright  2015 Josh Willcock
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
+ * @package   core
+ * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
+ * @copyright 2026 Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class completion_regular_task extends scheduled_task {
-    /**
-     * Get a descriptive name for this task (shown to admins).
-     *
-     * @return string
-     */
+class completion_criteria_grade_check_task extends adhoc_task {
+    use completion_criteria_check_trait;
+
+    #[\Override]
     public function get_name() {
-        return get_string('taskcompletionregular', 'admin');
+        return get_string('taskcompletioncriteriagradecheck', 'admin');
     }
 
-    /**
-     * Do the job.
-     * Throw exceptions on errors (the job will be retried).
-     */
+    #[\Override]
     public function execute() {
-        global $CFG;
-        if ($CFG->enablecompletion) {
-            require_once($CFG->dirroot . '/lib/completionlib.php');
-            aggregate_completions(0, true);
-        }
+        $data = $this->get_custom_data();
+        $constraints = [
+            'courseid' => $data->courseid,
+            'userid' => $data->userid,
+        ];
+
+        $this->execute_inner('grade', $constraints, true);
     }
 }

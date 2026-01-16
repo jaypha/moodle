@@ -22,6 +22,8 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core\task\completion_criteria_grade_check_task;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/grade_object.php');
@@ -820,6 +822,11 @@ class grade_category extends grade_object {
 
             // If successful trigger a user_graded event.
             if ($success) {
+                if ($this->grade_item->itemtype == 'course') {
+                    $task = new completion_criteria_grade_check_task();
+                    $task->set_custom_data(['userid' => $userid, 'courseid' => $this->grade_item->courseid]);
+                    \core\task\manager::queue_adhoc_task($task);
+                }
                 \core\event\user_graded::create_from_grade($grade, \core\event\base::USER_OTHER)->trigger();
             }
         }

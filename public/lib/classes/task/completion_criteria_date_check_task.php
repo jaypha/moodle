@@ -17,31 +17,28 @@
 namespace core\task;
 
 /**
- * Simple task to aggregate course completions.
+ * Task to perform a date completion criteria check.
  *
- * @package    core
- * @copyright  2015 Josh Willcock
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
+ * @package   core
+ * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
+ * @copyright 2026 Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class completion_regular_task extends scheduled_task {
-    /**
-     * Get a descriptive name for this task (shown to admins).
-     *
-     * @return string
-     */
+class completion_criteria_date_check_task extends scheduled_task {
+    use completion_criteria_check_trait;
+
+    #[\Override]
     public function get_name() {
-        return get_string('taskcompletionregular', 'admin');
+        return get_string('taskcompletioncriteriadatecheck', 'admin');
     }
 
-    /**
-     * Do the job.
-     * Throw exceptions on errors (the job will be retried).
-     */
+    #[\Override]
     public function execute() {
-        global $CFG;
-        if ($CFG->enablecompletion) {
-            require_once($CFG->dirroot . '/lib/completionlib.php');
-            aggregate_completions(0, true);
-        }
+        $constraints = [
+            'timefrom' => $this->get_timefrom('date'),
+        ];
+
+        $this->execute_inner('date', $constraints, true);
+        set_config('completion_criteria_date_check_lasttime', $this->get_timestarted());
     }
 }

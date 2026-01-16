@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
@@ -27,8 +30,9 @@ require_once($CFG->libdir.'/completionlib.php');
  * @copyright  2008 Sam Marshall
  * @copyright  2013 Frédéric Massart
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass \completion_info
  */
+#[CoversClass(completion_completion::class)]
+#[CoversClass(completion_info::class)]
 final class completionlib_test extends advanced_testcase {
     protected $course;
     protected $user;
@@ -2087,6 +2091,78 @@ final class completionlib_test extends advanced_testcase {
         $this->assertNull($completionid);
         $completions = $DB->get_records('course_completions');
         $this->assertCompletionEquals(1, count($completions));
+    }
+
+    /**
+     * Providor function for test_mark_complete_with_time_window().
+     *
+     * @return array[]
+     */
+    public static function providor_mark_complete_with_time_window(): array {
+        $now = time();
+        return [
+            'allnull' => [ $now, null, null, 1],
+            'nowinwindow' => [ $now, null, 1000, 1],
+            'inwindow' => [ $now, $now - 100, 1000, 1],
+            'outwindow' => [ $now, $now - 1000, 100, 0],
+        ];
+    }
+
+    /**
+     * Tests the marks_complete_function with various time window settings.
+     *
+     * @param int|null $timecompleted
+     * @param int|null $timewindow
+     * @param int $expectedcount
+     */
+    #[DataProvider('providor_mark_complete_with_time_window')]
+    public function test_mark_complete_with_time_window(
+        int $currenttime,
+        ?int $timecompleted,
+        ?int $timewindow,
+        int $expectedcount
+    ): void {
+        global $DB;
+        $this->resetAfterTest(true);
+        $this->mock_clock_with_frozen($currenttime);
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        $student = $this->getDataGenerator()->create_user();
+        $teacher = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $teacherrole = $DB->get_record('role', ['shortname' => 'editingteacher']);
+
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, $teacherrole->id);
+        $this->getDataGenerator()->enrol_user($student->id, $course->id, $studentrole->id);
+
+        $taskclass = \core\task\completion_criteria_course_check_task::class;
+        // Check that the ad-hoc queue is empty.
+        $adhoctasks = \core\task\manager::get_adhoc_tasks($taskclass);
+        $this->assertCount(0, $adhoctasks);
+
+        $cc = ['course' => $course->id, 'userid' => $student->id];
+        $ccompletion = new completion_completion($cc);
+
+        set_config('completion_completion_notify_time_window', $timewindow);
+        $sink = $this->redirectMessages();
+        $ccompletion->mark_complete($timecompleted);
+        $this->assertCount($expectedcount, $sink->get_messages());
+
+        // Assert that marking complete causes a completion_criteria_course_check_task to be queued.
+        // Assert exactly one task was queued for this class.
+        $adhoctasks = \core\task\manager::get_adhoc_tasks($taskclass);
+        $this->assertCount(1, $adhoctasks);
+
+        $task = reset($adhoctasks);
+        $this->assertInstanceOf($taskclass, $task);
+
+        $customdata = $task->get_custom_data();
+
+        $this->assertObjectHasProperty('courseinstance', $customdata);
+        $this->assertEquals($course->id, $customdata->courseinstance);
+        $this->assertObjectHasProperty('userid', $customdata);
+        $this->assertEquals($student->id, $customdata->userid);
     }
 
     /**

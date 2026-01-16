@@ -16,6 +16,8 @@
 
 namespace core_completion;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 /**
  * Test completion criteria.
  *
@@ -24,8 +26,13 @@ namespace core_completion;
  * @copyright 2021 Mikhail Golenkov <mikhailgolenkov@catalyst-au.net>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(\completion_criteria_date::class)]
+#[CoversClass(\completion_criteria_grade::class)]
+#[CoversClass(\completion_criteria_duration::class)]
+#[CoversClass(\completion_criteria_activity::class)]
+#[CoversClass(\core\task\completion_criteria_date_check_task::class)]
+#[CoversClass(\core\task\completion_criteria_duration_check_task::class)]
 final class completion_criteria_test extends \advanced_testcase {
-
     /**
      * Test setup.
      */
@@ -102,13 +109,14 @@ final class completion_criteria_test extends \advanced_testcase {
         $criterion->update_config($criteriadata);
 
         // Run completion scheduled task.
-        $task = new \core\task\completion_regular_task();
+        $checktask = new \core\task\completion_criteria_duration_check_task();
         $this->expectOutputRegex("/Marking complete/");
-        $task->execute();
+        $checktask->execute();
         // Hopefully, some day MDL-33320 will be fixed and all these sleeps
         // and double cron calls in behat and unit tests will be removed.
         sleep(1);
-        $task->execute();
+        $regulartask = new \core\task\completion_regular_task();
+        $regulartask->execute();
 
         // The course for User is supposed to be marked as completed at $timestarted + $durationperiod.
         $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
@@ -128,9 +136,9 @@ final class completion_criteria_test extends \advanced_testcase {
         $DB->set_field('user_enrolments', 'timecreated', $timecreated, ['userid' => $user->id]);
 
         // Run the completion cron. See MDL-33320.
-        $task->execute();
+        $checktask->execute();
         sleep(1);
-        $task->execute();
+        $regulartask->execute();
 
         // We do NOT expect the user to be complete currently.
         $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
@@ -141,9 +149,9 @@ final class completion_criteria_test extends \advanced_testcase {
         $DB->set_field('user_enrolments', 'timestart', $timestarted, ['userid' => $user->id]);
 
         // Run the completion cron. See MDL-33320.
-        $task->execute();
+        $checktask->execute();
         sleep(1);
-        $task->execute();
+        $regulartask->execute();
 
         // Now they should be complete.
         $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
@@ -177,13 +185,14 @@ final class completion_criteria_test extends \advanced_testcase {
         $criterion->update_config($criteriadata);
 
         // Run completion scheduled task.
-        $task = new \core\task\completion_regular_task();
+        $task = new \core\task\completion_criteria_duration_check_task();
         $this->expectOutputRegex("/Marking complete/");
         $task->execute();
 
         // Hopefully, some day MDL-33320 will be fixed and all these sleeps
         // and double cron calls in behat and unit tests will be removed.
         sleep(1);
+        $task = new \core\task\completion_regular_task();
         $task->execute();
 
         // The course for user is supposed to be marked as completed at $timecreated + $durationperiod.
@@ -215,17 +224,72 @@ final class completion_criteria_test extends \advanced_testcase {
         $criterion->update_config($criteriadata);
 
         // Run completion scheduled task.
-        $task = new \core\task\completion_regular_task();
+        $task = new \core\task\completion_criteria_date_check_task();
         $this->expectOutputRegex("/Marking complete/");
         $task->execute();
         // Hopefully, some day MDL-33320 will be fixed and all these sleeps
         // and double cron calls in behat and unit tests will be removed.
         sleep(1);
+        $task = new \core\task\completion_regular_task();
         $task->execute();
 
         // The course is supposed to be marked as completed at $timeend.
         $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
         $this->assertEquals($timeend, $ccompletion->timecompleted);
+        $this->assertTrue($ccompletion->is_complete());
+    }
+
+    /**
+     * Test that criteria date is used as a course completion date, using a timefrom parameter.
+     */
+    public function test_completion_criteria_date_with_timefrom(): void {
+        global $DB;
+        $timeend = 1610000000;
+
+        // Create a course and enrol a user.
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $user = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $studentrole->id);
+
+        // Set completion criteria.
+        $criteriadata = (object) [
+            'id' => $course->id,
+            'criteria_date' => 1,
+            'criteria_date_value' => $timeend,
+        ];
+        $criterion = new \completion_criteria_date();
+        $criterion->update_config($criteriadata);
+
+        // Run completion scheduled task.
+        $task = new \core\task\completion_criteria_date_check_task();
+        $task->set_last_run_time($timeend + 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+
+        $task = new \core\task\completion_regular_task();
+        $task->execute();
+
+        // The course is supposed to be marked as completed at $timeend.
+        $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
+        $this->assertFalse($ccompletion->is_complete());
+
+        // Run completion scheduled task.
+        $task = new \core\task\completion_criteria_date_check_task();
+        $task->set_last_run_time($timeend - 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $task->execute();
+
+        // The course is supposed to be marked as completed at $timeend.
+        $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
         $this->assertTrue($ccompletion->is_complete());
     }
 
@@ -272,12 +336,16 @@ final class completion_criteria_test extends \advanced_testcase {
         $grade2->insert();
 
         // Run completion scheduled task.
-        $task = new \core\task\completion_regular_task();
+        $task = new \core\task\completion_criteria_grade_check_task();
+        $task->set_custom_data(['courseid' => $course->id, 'userid' => $user1->id]);
         $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        $task->set_custom_data(['courseid' => $course->id, 'userid' => $user2->id]);
         $task->execute();
         // Hopefully, some day MDL-33320 will be fixed and all these sleeps
         // and double cron calls in behat and unit tests will be removed.
         sleep(1);
+        $task = new \core\task\completion_regular_task();
         $task->execute();
 
         // The course for User 1 is supposed to be marked as completed when the user was graded.
@@ -288,5 +356,245 @@ final class completion_criteria_test extends \advanced_testcase {
         // The course for User 2 is supposed to be marked as not completed.
         $ccompletion = new \completion_completion(['userid' => $user2->id, 'course' => $course->id]);
         $this->assertFalse($ccompletion->is_complete());
+    }
+
+    /**
+     * Test that a course regrade queues a completion_criteria_grade_check_task.
+     */
+    public function test_regrade_final_grades_queues_completion_check_task(): void {
+        global $DB;
+
+        $taskclass = \core\task\completion_criteria_grade_check_task::class;
+
+        // Create a course with an activity and enrol a user.
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $user = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        // Set course grade completion criteria.
+        $criteriadata = (object) [
+            'id' => $course->id,
+            'criteria_grade' => 1,
+            'criteria_grade_value' => 66,
+        ];
+        $criterion = new \completion_criteria_grade();
+        $criterion->update_config($criteriadata);
+
+        // Give the user a grade on the activity item directly (grade_grade::insert() does
+        // not auto-regrade), so the course total will change from null when we aggregate.
+        $assignitem = \grade_item::fetch([
+            'itemtype' => 'mod',
+            'itemmodule' => 'assign',
+            'iteminstance' => $assign->id,
+            'courseid' => $course->id,
+        ]);
+        $assigngrade = new \grade_grade();
+        $assigngrade->itemid = $assignitem->id;
+        $assigngrade->userid = $user->id;
+        $assigngrade->rawgrade = 80;
+        $assigngrade->rawgrademin = 0;
+        $assigngrade->rawgrademax = 100;
+        $assigngrade->finalgrade = 80;
+        $assigngrade->insert();
+
+        // Force the course total to be recalculated on the next regrade.
+        $courseitem = \grade_item::fetch_course_item($course->id);
+        $courseitem->force_regrading();
+
+        // Clear any adhoc tasks queued during setup so we assert only on the regrade below.
+        $DB->delete_records('task_adhoc');
+        $this->assertCount(0, \core\task\manager::get_adhoc_tasks($taskclass));
+
+        // Run the regrade inline (async defaults to false) -> aggregation changes the course
+        // total, which queues the completion check task for the course item.
+        grade_regrade_final_grades($course->id);
+
+        // Assert exactly one completion check task was queued, targeting this course and user.
+        $adhoctasks = \core\task\manager::get_adhoc_tasks($taskclass);
+        $this->assertCount(1, $adhoctasks);
+
+        $task = reset($adhoctasks);
+        $this->assertInstanceOf($taskclass, $task);
+        $this->assertEquals($course->id, $task->get_custom_data()->courseid);
+        $this->assertEquals($user->id, $task->get_custom_data()->userid);
+    }
+
+    /**
+     * Test completion_criteria_duration with a course constraint.
+     */
+    public function test_completion_criteria_duration_with_course_constraint(): void {
+        global $DB;
+        $period = DAYSECS;
+        $now = time();
+
+        // Create two courses with completion enabled.
+        $course1 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course2 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        // Create users and enrol them so they meet the duration requirement (timestart in the past).
+        $timestart = $now - ($period + 100);
+        $user1 = $this->getDataGenerator()->create_and_enrol($course1, 'student', null, 'manual', $timestart);
+        $user2 = $this->getDataGenerator()->create_and_enrol($course2, 'student', null, 'manual', $timestart);
+
+        // Set duration criteria for both courses.
+        $criteriadata = (object) [
+            'id' => $course1->id,
+            'criteria_duration' => 1,
+            'criteria_duration_days' => $period,
+        ];
+        $criterion = new \completion_criteria_duration();
+        $criterion->update_config($criteriadata);
+
+        $criteriadata->id = $course2->id;
+        $criterion = new \completion_criteria_duration();
+        $criterion->update_config($criteriadata);
+
+        // Run the ad-hoc task with a course constraint for course1.
+        $task = new \core\task\completion_criteria_full_check_task();
+        $task->set_custom_data((object)[
+            'constraints' => ['courseid' => $course1->id],
+            'mtraceprogress' => false,
+        ]);
+        $task->execute();
+        // Ensure items flagged during the first pass are processed in the second run (see MDL-33320 behaviour).
+        sleep(1);
+        // Run the scheduled task to perform aggregation.
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Course1 user should be marked complete, course2 user should not.
+        $ccompletion1 = new \completion_completion(['userid' => $user1->id, 'course' => $course1->id]);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course2->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_date with a course constraint.
+     */
+    public function test_completion_criteria_date_with_course_constraint(): void {
+        global $DB;
+        $timeend = 1610000000;
+
+        // Create two courses and users.
+        $course1 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course2 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $this->getDataGenerator()->enrol_user($user1->id, $course1->id, $studentrole->id);
+        $this->getDataGenerator()->enrol_user($user2->id, $course2->id, $studentrole->id);
+
+        // Set completion date criteria for both courses.
+        $criteriadata = (object) [
+            'id' => $course1->id,
+            'criteria_date' => 1,
+            'criteria_date_value' => $timeend,
+        ];
+        $criterion = new \completion_criteria_date();
+        $criterion->update_config($criteriadata);
+
+        $criteriadata->id = $course2->id;
+        $criterion = new \completion_criteria_date();
+        $criterion->update_config($criteriadata);
+
+        // Run the ad-hoc task with a course constraint for course1.
+        $task = new \core\task\completion_criteria_full_check_task();
+        $task->set_custom_data((object)[
+            'constraints' => ['courseid' => $course1->id],
+            'mtraceprogress' => false,
+        ]);
+        $task->execute();
+        // Ensure items flagged during the first pass are processed in the second run.
+        sleep(1);
+        // Run the scheduled task to perform aggregation.
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Course1 user should be marked complete at $timeend, course2 user should not be complete.
+        $ccompletion1 = new \completion_completion(['userid' => $user1->id, 'course' => $course1->id]);
+        $this->assertEquals($timeend, $ccompletion1->timecompleted);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course2->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_grade with a course constraint (ensure separate criterion instances).
+     */
+    public function test_completion_criteria_grade_with_course_constraint(): void {
+        global $DB;
+        $timegraded = 1615000000;
+
+        // Create two courses and enroll users.
+        $course1 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course2 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $this->getDataGenerator()->enrol_user($user1->id, $course1->id, $studentrole->id);
+        $this->getDataGenerator()->enrol_user($user2->id, $course2->id, $studentrole->id);
+
+        // Set grade criteria on both courses. Use separate instances for each course.
+        $criteriadata1 = (object) [
+            'id' => $course1->id,
+            'criteria_grade' => 1,
+            'criteria_grade_value' => 50,
+        ];
+        $criterion1 = new \completion_criteria_grade();
+        $criterion1->update_config($criteriadata1);
+
+        $criteriadata2 = (object) [
+            'id' => $course2->id,
+            'criteria_grade' => 1,
+            'criteria_grade_value' => 50,
+        ];
+        $criterion2 = new \completion_criteria_grade();
+        $criterion2->update_config($criteriadata2);
+
+        // Create course grade items and insert grades for both users.
+        $coursegradeitem1 = \grade_item::fetch_course_item($course1->id);
+        $grade1 = new \grade_grade();
+        $grade1->itemid = $coursegradeitem1->id;
+        $grade1->timemodified = $timegraded;
+        $grade1->userid = $user1->id;
+        $grade1->finalgrade = 80;
+        $grade1->insert();
+
+        $coursegradeitem2 = \grade_item::fetch_course_item($course2->id);
+        $grade2 = new \grade_grade();
+        $grade2->itemid = $coursegradeitem2->id;
+        $grade2->timemodified = $timegraded;
+        $grade2->userid = $user2->id;
+        $grade2->finalgrade = 80;
+        $grade2->insert();
+
+        // Run the adhoc task constrained to course1 only.
+        $task = new \core\task\completion_criteria_full_check_task();
+        $task->set_custom_data((object)[
+            'constraints' => ['courseid' => $course1->id],
+            'mtraceprogress' => false,
+        ]);
+        $task->execute();
+        // Ensure second pass processes items flagged during the first pass.
+        sleep(1);
+        // Run the scheduled task to perform aggregation.
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Course1 user should be marked complete, course2 user should not be processed.
+        $ccompletion1 = new \completion_completion(['userid' => $user1->id, 'course' => $course1->id]);
+        $this->assertEquals($timegraded, $ccompletion1->timecompleted);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course2->id]);
+        $this->assertFalse($ccompletion2->is_complete());
     }
 }
