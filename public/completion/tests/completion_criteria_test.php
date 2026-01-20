@@ -230,6 +230,57 @@ final class completion_criteria_test extends \advanced_testcase {
     }
 
     /**
+     * Test that criteria date is used as a course completion date, using a timefrom parameter.
+     */
+    public function test_completion_criteria_date_with_timefrom(): void {
+        global $DB;
+        $timeend = 1610000000;
+
+        // Create a course and enrol a user.
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $user = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $studentrole->id);
+
+        // Set completion criteria.
+        $criteriadata = (object) [
+            'id' => $course->id,
+            'criteria_date' => 1,
+            'criteria_date_value' => $timeend,
+        ];
+        $criterion = new \completion_criteria_date();
+        $criterion->update_config($criteriadata);
+
+        // Run completion scheduled task.
+        $task = new \core\task\completion_regular_task();
+        $task->set_last_run_time($timeend + 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+        $task->execute();
+
+        // The course is supposed to be marked as completed at $timeend.
+        $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
+        $this->assertFalse($ccompletion->is_complete());
+
+        // Run completion scheduled task.
+        $task = new \core\task\completion_regular_task();
+        $task->set_last_run_time($timeend - 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+        $task->execute();
+
+        // The course is supposed to be marked as completed at $timeend.
+        $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
+        $this->assertTrue($ccompletion->is_complete());
+    }
+
+    /**
      * Test that grade timemodified is used when grade criteria is marked as completed.
      */
     public function test_completion_criteria_grade(): void {
@@ -288,5 +339,66 @@ final class completion_criteria_test extends \advanced_testcase {
         // The course for User 2 is supposed to be marked as not completed.
         $ccompletion = new \completion_completion(['userid' => $user2->id, 'course' => $course->id]);
         $this->assertFalse($ccompletion->is_complete());
+    }
+
+    /**
+     * Test that only grades completed since last time are marked as completed.
+     */
+    public function test_completion_criteria_grade_with_timefrom(): void {
+        global $DB;
+        $timegraded = 1610000000;
+
+        // Create a course and enrol a couple of users.
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $user1 = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $this->getDataGenerator()->enrol_user($user1->id, $course->id, $studentrole->id);
+
+        // Set completion criteria.
+        $criteriadata = (object) [
+            'id' => $course->id,
+            'criteria_grade' => 1,
+            'criteria_grade_value' => 66,
+        ];
+        $criterion = new \completion_criteria_grade();
+        $criterion->update_config($criteriadata);
+
+        $coursegradeitem = \grade_item::fetch_course_item($course->id);
+
+        // Grade User 1 with a passing grade.
+        $grade1 = new \grade_grade();
+        $grade1->itemid = $coursegradeitem->id;
+        $grade1->timemodified = $timegraded;
+        $grade1->userid = $user1->id;
+        $grade1->finalgrade = 80;
+        $grade1->insert();
+
+        // Run completion scheduled task.
+        $task = new \core\task\completion_regular_task();
+        $task->set_last_run_time($timegraded + 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+        $task->execute();
+
+        // The course for User 1 is supposed to be not completed as it does not fall in the timeframe.
+        $ccompletion = new \completion_completion(['userid' => $user1->id, 'course' => $course->id]);
+        $this->assertFalse($ccompletion->is_complete());
+
+        // Run again but with an earlier cutoff.
+        $task = new \core\task\completion_regular_task();
+        $task->set_last_run_time($timegraded - 2 * HOURSECS);
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+        // Hopefully, some day MDL-33320 will be fixed and all these sleeps
+        // and double cron calls in behat and unit tests will be removed.
+        sleep(1);
+        $task->execute();
+
+        // The course for User 1 is supposed to be marked as completed.
+        $ccompletion = new \completion_completion(['userid' => $user1->id, 'course' => $course->id]);
+        $this->assertTrue($ccompletion->is_complete());
     }
 }

@@ -196,63 +196,59 @@ class completion_criteria_duration extends completion_criteria {
 
     /**
      * Find user's who have completed this criteria
+     *
+     * @param ?int $timefrom If set, limit search to completions after this time.
      */
-    public function cron() {
+    public function cron(?int $timefrom = null) {
         global $DB;
 
         /*
-         * Get all users who match meet this criteria
+         * Get all users who match meet this criteria.
          *
          * We can safely ignore duplicate enrolments for
          * a user in a course here as we only care if
          * one of the enrolments has passed the set
          * duration.
          */
-        $sql = '
-            SELECT
-                c.id AS course,
-                cr.id AS criteriaid,
-                u.id AS userid,
-                ue.timestart AS otimestart,
-                (ue.timestart + cr.enrolperiod) AS ctimestart,
-                ue.timecreated AS otimeenrolled,
-                (ue.timecreated + cr.enrolperiod) AS ctimeenrolled
-            FROM
-                {user} u
-            INNER JOIN
-                {user_enrolments} ue
-             ON ue.userid = u.id
-            INNER JOIN
-                {enrol} e
-             ON e.id = ue.enrolid
-            INNER JOIN
-                {course} c
-             ON c.id = e.courseid
-            INNER JOIN
-                {course_completion_criteria} cr
-             ON c.id = cr.course
-            LEFT JOIN
-                {course_completion_crit_compl} cc
-             ON cc.criteriaid = cr.id
-            AND cc.userid = u.id
-            WHERE
-                cr.criteriatype = '.COMPLETION_CRITERIA_TYPE_DURATION.'
-            AND c.enablecompletion = 1
-            AND cc.id IS NULL
-            AND
-            (
-                (ue.timestart > 0 AND (ue.timestart + cr.enrolperiod) < ?)
-             OR (ue.timestart = 0 AND ue.timecreated > 0 AND (ue.timecreated + cr.enrolperiod) < ?)
-            )
-        ';
+        $sql = "SELECT c.id AS course,
+                       cr.id AS criteriaid,
+                       u.id AS userid,
+                       ue.timestart AS otimestart,
+                       (ue.timestart + cr.enrolperiod) AS ctimestart,
+                       ue.timecreated AS otimeenrolled,
+                       (ue.timecreated + cr.enrolperiod) AS ctimeenrolled
+                  FROM {user} u
+            INNER JOIN {user_enrolments} ue ON ue.userid = u.id
+            INNER JOIN {enrol} e ON e.id = ue.enrolid
+            INNER JOIN {course} c ON c.id = e.courseid
+            INNER JOIN {course_completion_criteria} cr ON c.id = cr.course
+             LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = u.id
+                 WHERE cr.criteriatype = :criteriatype AND
+                       c.enablecompletion = 1 AND cc.id IS NULL AND
+                       (
+                           (ue.timestart > 0 AND (ue.timestart + cr.enrolperiod) < :timestart1) OR
+                           (ue.timestart = 0 AND ue.timecreated > 0 AND (ue.timecreated + cr.enrolperiod) < :timestart2)
+                       )";
 
-        // Loop through completions, and mark as complete
         $now = time();
-        $rs = $DB->get_recordset_sql($sql, array($now, $now));
+        $params = [
+            'criteriatype' => COMPLETION_CRITERIA_TYPE_DURATION,
+            'timestart1' => $now,
+            'timestart2' => $now,
+        ];
+
+        if (!is_null($timefrom)) {
+            $sql .= " AND ((ue.timestart != 0 AND (ue.timestart + cr.enrolperiod) >= :timefrom1) OR (ue.timestart = 0 AND (ue.timecreated + cr.enrolperiod) >= :timefrom2))";
+            $params['timefrom1'] = $timefrom;
+            $params['timefrom2'] = $timefrom;
+        }
+
+        // Loop through completions, and mark as complete.
+        $rs = $DB->get_recordset_sql($sql, $params);
         foreach ($rs as $record) {
             $completion = new completion_criteria_completion((array) $record, DATA_OBJECT_FETCH_BY_KEY);
 
-            // Use time start if not 0, otherwise use timeenrolled
+            // Use time start if not 0, otherwise use timeenrolled.
             if ($record->otimestart) {
                 $completion->mark_complete($record->ctimestart);
             } else {

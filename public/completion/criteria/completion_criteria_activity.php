@@ -201,9 +201,11 @@ class completion_criteria_activity extends completion_criteria {
 
     /**
      * Find users who have completed this criteria and mark them accordingly
+     *
+     * @param ?int $timefrom If set, limit search to completions after this time.
      */
-    public function cron() {
-        \core_completion\api::mark_course_completions_activity_criteria();
+    public function cron(?int $timefrom = null) {
+        \core_completion\api::mark_course_completions_activity_criteria(null, $timefrom);
     }
 
     /**
