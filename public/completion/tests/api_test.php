@@ -296,23 +296,26 @@ final class api_test extends \advanced_testcase {
      */
     public function test_mark_course_completions_activity_criteria_with_time(): void {
         global $DB, $CFG;
-        require_once($CFG->dirroot.'/completion/criteria/completion_criteria_activity.php');
+        require_once($CFG->dirroot . '/completion/criteria/completion_criteria_activity.php');
         $this->resetAfterTest(true);
 
-        $course = $this->getDataGenerator()->create_course(array('enablecompletion' => 1));
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
         $student1 = $this->getDataGenerator()->create_user();
         $student2 = $this->getDataGenerator()->create_user();
 
         $teacher = $this->getDataGenerator()->create_user();
-        $studentrole = $DB->get_record('role', array('shortname' => 'student'));
-        $teacherrole = $DB->get_record('role', array('shortname' => 'editingteacher'));
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $teacherrole = $DB->get_record('role', ['shortname' => 'editingteacher']);
 
         $this->getDataGenerator()->enrol_user($teacher->id, $course->id, $teacherrole->id);
         $this->getDataGenerator()->enrol_user($student1->id, $course->id, $studentrole->id);
         $this->getDataGenerator()->enrol_user($student2->id, $course->id, $studentrole->id);
 
-        $data = $this->getDataGenerator()->create_module('data', array('course' => $course->id),
-            array('completion' => 1));
+        $data = $this->getDataGenerator()->create_module(
+            'data',
+            ['course' => $course->id],
+            ['completion' => 1]
+        );
         $cmdata = get_coursemodule_from_id('data', $data->cmid);
         $cm = get_coursemodule_from_instance('data', $data->id);
         $c = new \completion_info($course);
@@ -320,7 +323,7 @@ final class api_test extends \advanced_testcase {
         // Add activity completion criteria.
         $criteriadata = new \stdClass();
         $criteriadata->id = $course->id;
-        $criteriadata->criteria_activity = array();
+        $criteriadata->criteria_activity = [];
         // Some activities.
         $criteriadata->criteria_activity[$cmdata->id] = 1;
         $criterion = new \completion_criteria_activity();

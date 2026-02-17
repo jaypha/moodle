@@ -162,11 +162,11 @@ class completion_criteria_date extends completion_criteria {
                      INNER JOIN {context} con ON con.instanceid = c.id
                      INNER JOIN {role_assignments} ra ON ra.contextid = con.id
                       LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = ra.userid
-                          WHERE cr.criteriatype = :criteriatype AND
-                                con.contextlevel = :contextlevel AND
-                                c.enablecompletion = 1 AND
-                                cc.id IS NULL AND
-                                cr.timeend < :timeend";
+                          WHERE cr.criteriatype = :criteriatype
+                            AND con.contextlevel = :contextlevel
+                            AND c.enablecompletion = 1
+                            AND cc.id IS NULL
+                            AND cr.timeend < :timeend";
 
         $params = [
             'criteriatype' => COMPLETION_CRITERIA_TYPE_DATE,

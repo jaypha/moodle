@@ -16,6 +16,8 @@
 
 namespace core_completion;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 /**
  * Test completion criteria.
  *
@@ -24,6 +26,8 @@ namespace core_completion;
  * @copyright 2021 Mikhail Golenkov <mikhailgolenkov@catalyst-au.net>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(\completion_criteria_date::class)]
+#[CoversClass(\completion_criteria_grade::class)]
 final class completion_criteria_test extends \advanced_testcase {
 
     /**

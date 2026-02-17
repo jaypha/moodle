@@ -223,11 +223,12 @@ class completion_criteria_duration extends completion_criteria {
             INNER JOIN {course} c ON c.id = e.courseid
             INNER JOIN {course_completion_criteria} cr ON c.id = cr.course
              LEFT JOIN {course_completion_crit_compl} cc ON cc.criteriaid = cr.id AND cc.userid = u.id
-                 WHERE cr.criteriatype = :criteriatype AND
-                       c.enablecompletion = 1 AND cc.id IS NULL AND
-                       (
-                           (ue.timestart > 0 AND (ue.timestart + cr.enrolperiod) < :timestart1) OR
-                           (ue.timestart = 0 AND ue.timecreated > 0 AND (ue.timecreated + cr.enrolperiod) < :timestart2)
+                 WHERE cr.criteriatype = :criteriatype
+                   AND c.enablecompletion = 1
+                   AND cc.id IS NULL
+                   AND (
+                              (ue.timestart > 0 AND (ue.timestart + cr.enrolperiod) < :timestart1)
+                           OR (ue.timestart = 0 AND ue.timecreated > 0 AND (ue.timecreated + cr.enrolperiod) < :timestart2)
                        )";
 
         $now = time();
@@ -238,7 +239,8 @@ class completion_criteria_duration extends completion_criteria {
         ];
 
         if (!is_null($timefrom)) {
-            $sql .= " AND ((ue.timestart != 0 AND (ue.timestart + cr.enrolperiod) >= :timefrom1) OR (ue.timestart = 0 AND (ue.timecreated + cr.enrolperiod) >= :timefrom2))";
+            $sql .= " AND ((ue.timestart != 0 AND (ue.timestart + cr.enrolperiod) >= :timefrom1) OR " .
+                    "(ue.timestart = 0 AND (ue.timecreated + cr.enrolperiod) >= :timefrom2))";
             $params['timefrom1'] = $timefrom;
             $params['timefrom2'] = $timefrom;
         }

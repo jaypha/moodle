@@ -166,10 +166,10 @@ class completion_criteria_course extends completion_criteria {
                      INNER JOIN {course} c ON cr.course = c.id
                      INNER JOIN {course_completions} cc ON cc.course = cr.courseinstance
                       LEFT JOIN {course_completion_crit_compl} ccc ON ccc.criteriaid = cr.id AND ccc.userid = cc.userid
-                          WHERE cr.criteriatype = :criteriatype AND
-                                c.enablecompletion = 1 AND
-                                ccc.id IS NULL AND
-                                cc.timecompleted IS NOT NULL";
+                          WHERE cr.criteriatype = :criteriatype
+                            AND c.enablecompletion = 1
+                            AND ccc.id IS NULL
+                            AND cc.timecompleted IS NOT NULL";
 
         $params = [
             'criteriatype' => COMPLETION_CRITERIA_TYPE_COURSE,

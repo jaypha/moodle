@@ -1740,8 +1740,11 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2026021000.01);
     }
 
-    if ($oldversion < 2026021000.01) {
-        mtrace("About to run cron completion update with updated SQL conditions. Notifications have been disabled temporarily to stop old completion notifications being emitted.");
+    if ($oldversion < 2026021700.01) {
+        mtrace(
+            'About to run cron completion update with updated SQL conditions. ' .
+            'Notifications have been disabled temporarily to stop old completion notifications being emitted.'
+        );
 
         // First disable all site messaging & emails.
         // We are about to trigger potentially a lot of notifications for really old course completions,
@@ -1771,7 +1774,7 @@ function xmldb_main_upgrade($oldversion) {
         $DB->execute('UPDATE {message_processors} SET enabled = 1 WHERE id ' . $insql, $inparams);
 
         // Main savepoint reached.
-        upgrade_main_savepoint(true, 2026021000.01);
+        upgrade_main_savepoint(true, 2026021700.01);
     }
 
     return true;
