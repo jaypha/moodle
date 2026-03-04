@@ -151,8 +151,9 @@ class completion_criteria_course extends completion_criteria {
 
     /**
      * Find user's who have completed this criteria
+     * @param ?int $timefrom If set, limit search to completions after this time.
      */
-    public function cron() {
+    public function cron(?int $timefrom = null) {
 
         global $DB;
 
@@ -172,7 +173,12 @@ class completion_criteria_course extends completion_criteria {
 
         $params = ['criteriatype' => COMPLETION_CRITERIA_TYPE_COURSE];
 
-        // Loop through completions, and mark as complete
+        if (!is_null($timefrom)) {
+            $sql .= " AND cc.timecompleted >= :timefrom";
+            $params['timefrom'] = $timefrom;
+        }
+
+        // Loop through completions, and mark as complete.
         $rs = $DB->get_recordset_sql($sql, $params);
         foreach ($rs as $record) {
             $completion = new completion_criteria_completion((array) $record, DATA_OBJECT_FETCH_BY_KEY);

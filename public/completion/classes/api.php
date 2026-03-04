@@ -127,10 +127,11 @@ class api {
     /**
      * Mark users who completed course based on activity criteria.
      * @param array $userdata If set only marks specified user in given course else checks all courses/users.
+     * @param ?int $timefrom If set, limit search to completions after this time.
      * @return int Completion record id if $userdata is set, 0 else.
      * @since Moodle 4.0
      */
-    public static function mark_course_completions_activity_criteria($userdata = null): int {
+    public static function mark_course_completions_activity_criteria($userdata = null, ?int $timefrom = null): int {
         global $DB;
 
         // Get all users who meet this criteria
@@ -152,7 +153,7 @@ class api {
                                     OR (
                                            cm.completionpassgrade = 0
                                            AND (
-                                                   mc.completionstate = :completionstatepass2 
+                                                   mc.completionstate = :completionstatepass2
                                                    OR mc.completionstate = :completionstatefail
                                                )
                                        )
@@ -166,6 +167,11 @@ class api {
             'completionstatepass2' => COMPLETION_COMPLETE_PASS,
             'completionstatefail' => COMPLETION_COMPLETE_FAIL
         ];
+
+        if ($timefrom !== null) {
+            $sql .= " AND mc.timemodified >= :timefrom";
+            $params['timefrom'] = $timefrom;
+        }
 
         if ($userdata) {
             $params['courseid'] = $userdata['courseid'];

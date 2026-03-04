@@ -23,6 +23,8 @@
  */
 namespace core\task;
 
+use core\exception\moodle_exception;
+
 /**
  * Simple task to run the regular completion cron.
  * @copyright  2015 Josh Willcock
@@ -44,7 +46,7 @@ class completion_regular_task extends scheduled_task {
      * Throw exceptions on errors (the job will be retried).
      */
     public function execute() {
-        global $CFG, $COMPLETION_CRITERIA_TYPES, $DB;
+        global $CFG, $COMPLETION_CRITERIA_TYPES;
 
         if ($CFG->enablecompletion) {
             require_once($CFG->libdir . "/completionlib.php");
@@ -60,12 +62,17 @@ class completion_regular_task extends scheduled_task {
                     if (debugging()) {
                         mtrace('Running '.$object.'->cron()');
                     }
-                    $class->cron();
+                    // We set the time to an hour before the last run to ensure that there are no gaps.
+                    $timefrom = $this->get_last_run_time() - HOURSECS;
+                    // This would only happen when there are no previous runs.
+                    if ($timefrom <= 0) {
+                        $timefrom = null;
+                    }
+                    $class->cron($timefrom);
                 }
             }
 
             aggregate_completions(0, true);
         }
     }
-
 }

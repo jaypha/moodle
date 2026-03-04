@@ -156,7 +156,7 @@ class completion_completion extends data_object {
      * @return  int|null id of completion record on successful update.
      */
     public function mark_complete($timecomplete = null) {
-        global $USER;
+        global $CFG;
 
         // Never change a completion time.
         if ($this->timecompleted) {
@@ -177,36 +177,41 @@ class completion_completion extends data_object {
         }
 
         // Notify user.
-        $course = get_course($data->course);
-        $messagesubject = get_string('coursecompleted', 'completion');
-        $options = new stdClass();
-        $options->context = context_course::instance($course->id);
-        $a = [
-            'coursename' => format_string(get_course_display_name_for_list($course), true, $options),
-            'courselink' => (string) new moodle_url('/course/view.php', array('id' => $course->id)),
-        ];
-        $messagebody = get_string('coursecompletedmessage', 'completion', $a);
-        $messageplaintext = html_to_text($messagebody);
-
-        $eventdata = new \core\message\message();
-        $eventdata->courseid          = $course->id;
-        $eventdata->component         = 'moodle';
-        $eventdata->name              = 'coursecompleted';
-        $eventdata->userfrom          = core_user::get_noreply_user();
-        $eventdata->userto            = $data->userid;
-        $eventdata->notification      = 1;
-        $eventdata->subject           = $messagesubject;
-        $eventdata->fullmessage       = $messageplaintext;
-        $eventdata->fullmessageformat = FORMAT_HTML;
-        $eventdata->fullmessagehtml   = $messagebody;
-        $eventdata->smallmessage      = $messageplaintext;
-
-        if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
-            $eventdata->customdata  = [
-                'notificationpictureurl' => $courseimage,
+        // Only notify if the completion occured within a certain time window of the past. e.g. In the last
+        // 3 days (259200 sec).
+        $timewindow = $CFG->completion_completion_notify_time_window ?? null;
+        if (!$timewindow || $timecomplete > (time() - $timewindow)) {
+            $course = get_course($data->course);
+            $messagesubject = get_string('coursecompleted', 'completion');
+            $options = new stdClass();
+            $options->context = context_course::instance($course->id);
+            $a = [
+                'coursename' => format_string(get_course_display_name_for_list($course), true, $options),
+                'courselink' => (string)new moodle_url('/course/view.php', array('id' => $course->id)),
             ];
+            $messagebody = get_string('coursecompletedmessage', 'completion', $a);
+            $messageplaintext = html_to_text($messagebody);
+
+            $eventdata = new \core\message\message();
+            $eventdata->courseid = $course->id;
+            $eventdata->component = 'moodle';
+            $eventdata->name = 'coursecompleted';
+            $eventdata->userfrom = core_user::get_noreply_user();
+            $eventdata->userto = $data->userid;
+            $eventdata->notification = 1;
+            $eventdata->subject = $messagesubject;
+            $eventdata->fullmessage = $messageplaintext;
+            $eventdata->fullmessageformat = FORMAT_HTML;
+            $eventdata->fullmessagehtml = $messagebody;
+            $eventdata->smallmessage = $messageplaintext;
+
+            if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
+                $eventdata->customdata = [
+                    'notificationpictureurl' => $courseimage,
+                ];
+            }
+            message_send($eventdata);
         }
-        message_send($eventdata);
 
         return $result;
     }
