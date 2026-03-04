@@ -201,9 +201,11 @@ class completion_criteria_activity extends completion_criteria {
 
     /**
      * Find users who have completed this criteria and mark them accordingly
+     *
+     * @param array $constraints Extra constraints to place in the search.
      */
-    public function cron() {
-        \core_completion\api::mark_course_completions_activity_criteria();
+    public function cron(array $constraints = []) {
+        \core_completion\api::mark_course_completions_activity_criteria(null, $constraints);
     }
 
     /**

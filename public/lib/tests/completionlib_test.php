@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
@@ -27,8 +30,9 @@ require_once($CFG->libdir.'/completionlib.php');
  * @copyright  2008 Sam Marshall
  * @copyright  2013 Frédéric Massart
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass \completion_info
  */
+#[CoversClass(completion_completion::class)]
+#[CoversClass(completion_info::class)]
 final class completionlib_test extends advanced_testcase {
     protected $course;
     protected $user;
@@ -2087,6 +2091,52 @@ final class completionlib_test extends advanced_testcase {
         $this->assertNull($completionid);
         $completions = $DB->get_records('course_completions');
         $this->assertCompletionEquals(1, count($completions));
+    }
+
+    /**
+     * Providor function for test_mark_complete_with_time_window().
+     *
+     * @return array[]
+     */
+    public static function providor_mark_complete_with_time_window(): array {
+        $now = time();
+        return [
+            'allnull' => [ null, null, 1],
+            'nowinwindow' => [ null, 1000, 1],
+            'inwindow' => [ $now - 100, 1000, 1],
+            'outwindow' => [ $now - 1000, 100, 0],
+        ];
+    }
+
+    /**
+     * Tests the marks_complete_function with varisou time window settings.
+     *
+     * @param int|null $timecompleted
+     * @param int|null $timewindow
+     * @param int $expectedcount
+     */
+    #[DataProvider('providor_mark_complete_with_time_window')]
+    public function test_mark_complete_with_time_window(?int $timecompleted, ?int $timewindow, int $expectedcount): void {
+        global $DB;
+        $this->resetAfterTest(true);
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        $student = $this->getDataGenerator()->create_user();
+        $teacher = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
+        $teacherrole = $DB->get_record('role', ['shortname' => 'editingteacher']);
+
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, $teacherrole->id);
+        $this->getDataGenerator()->enrol_user($student->id, $course->id, $studentrole->id);
+
+        $cc = ['course' => $course->id, 'userid' => $student->id];
+        $ccompletion = new completion_completion($cc);
+
+        set_config('completion_completion_notify_time_window', $timewindow);
+        $sink = $this->redirectMessages();
+        $ccompletion->mark_complete($timecompleted);
+        $this->assertCount($expectedcount, $sink->get_messages());
     }
 
     /**

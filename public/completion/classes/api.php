@@ -127,10 +127,11 @@ class api {
     /**
      * Mark users who completed course based on activity criteria.
      * @param array $userdata If set only marks specified user in given course else checks all courses/users.
+     * @param array $constraints Extra constraints to place in the search.
      * @return int Completion record id if $userdata is set, 0 else.
      * @since Moodle 4.0
      */
-    public static function mark_course_completions_activity_criteria($userdata = null): int {
+    public static function mark_course_completions_activity_criteria($userdata = null, array $constraints = []): int {
         global $DB;
 
         // Get all users who meet this criteria
@@ -171,6 +172,19 @@ class api {
                 return $result;
             }
         } else {
+            $timefrom = $constraints['timefrom'] ?? null;
+            $courseid = $constraints['courseid'] ?? null;
+
+            if ($timefrom !== null) {
+                $sql .= " AND mc.timemodified >= :timefrom";
+                $params['timefrom'] = $timefrom;
+            }
+
+            if (!is_null($courseid)) {
+                $sql .= " AND c.id = :courseid";
+                $params['courseid'] = $courseid;
+            }
+
             // Loop through completions, and mark as complete.
             $rs = $DB->get_recordset_sql($sql, $params);
             foreach ($rs as $record) {
