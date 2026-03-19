@@ -1279,6 +1279,8 @@ class manager {
             return;
         }
 
+        $runningtask->microtimefinish = microtime(true);
+
         if ($runningtask instanceof scheduled_task) {
             self::scheduled_task_failed($runningtask);
             return;
@@ -1439,6 +1441,10 @@ class manager {
         $task->release_concurrency_lock();
         $task->get_lock()->release();
 
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\adhoc_task_complete($task, false);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
+
         self::$runningtask = null;
     }
 
@@ -1475,6 +1481,10 @@ class manager {
         $DB->update_record('task_adhoc', $record);
 
         self::task_starting($task);
+
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\adhoc_task_starting($task);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
     }
 
     /**
@@ -1497,6 +1507,10 @@ class manager {
         // Release the locks.
         $task->release_concurrency_lock();
         $task->get_lock()->release();
+
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\adhoc_task_complete($task, true);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
 
         self::$runningtask = null;
     }
@@ -1552,6 +1566,10 @@ class manager {
         $DB->update_record('task_scheduled', $record);
 
         $task->get_lock()->release();
+
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\scheduled_task_complete($task, $record->id ?? 0, false);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
 
         self::$runningtask = null;
     }
@@ -1645,6 +1663,10 @@ class manager {
         $DB->update_record('task_scheduled', $record);
 
         self::task_starting($task);
+
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\scheduled_task_starting($task, $record->id);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
     }
 
     /**
@@ -1678,6 +1700,10 @@ class manager {
 
         // Reschedule and then release the locks.
         $task->get_lock()->release();
+
+        // Dispatch hook to notify plugins.
+        $hook = new \core\hook\task\scheduled_task_complete($task, $record->id ?? 0, true);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
 
         self::$runningtask = null;
     }
