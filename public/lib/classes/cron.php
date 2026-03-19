@@ -383,6 +383,7 @@ class cron {
         $debugdisplay = $CFG->debugdisplay;
         $CFG->debugdisplay = 1;
 
+        $task->microtimestart = microtime(true);
         \core\task\manager::scheduled_task_starting($task);
         \core\task\logmanager::start_logging($task);
 
@@ -391,9 +392,7 @@ class cron {
         self::set_process_title('Scheduled task: ' . get_class($task));
         self::trace_time_and_memory();
         memory_reset_peak_usage();
-        $predbqueries = null;
         $predbqueries = $DB->perf_get_queries();
-        $pretime = microtime(1);
 
         // Ensure that we have a clean session with the correct cron user.
         self::setup_user();
@@ -407,24 +406,26 @@ class cron {
                 set_debugging(DEBUG_DEVELOPER, 1);
             }
             $task->execute();
+            $task->microtimefinish = microtime(true);
             if ($DB->is_transaction_started()) {
                 throw new coding_exception("Task left transaction open");
             }
             if (isset($predbqueries)) {
                 mtrace("... used " . ($DB->perf_get_queries() - $predbqueries) . " dbqueries");
-                mtrace("... used " . (microtime(1) - $pretime) . " seconds");
+                mtrace("... used " . ($task->microtimefinish - $task->microtimestart) . " seconds");
             }
             mtrace('... used ' . display_size(memory_get_peak_usage()) . ' peak memory');
             mtrace('Scheduled task complete: ' . $fullname);
             \core\task\manager::scheduled_task_complete($task);
         } catch (\Throwable $e) {
+            $task->microtimefinish = microtime(true);
             if ($DB && $DB->is_transaction_started()) {
                 error_log('Database transaction aborted automatically in ' . get_class($task));
                 $DB->force_transaction_rollback();
             }
             if (isset($predbqueries)) {
                 mtrace("... used " . ($DB->perf_get_queries() - $predbqueries) . " dbqueries");
-                mtrace("... used " . (microtime(1) - $pretime) . " seconds");
+                mtrace("... used " . ($task->microtimefinish - $task->microtimestart) . " seconds");
             }
             mtrace('... used ' . display_size(memory_get_peak_usage()) . ' peak memory');
             mtrace('Scheduled task failed: ' . $fullname . ',' . $e->getMessage());
@@ -463,6 +464,7 @@ class cron {
         $debugdisplay = $CFG->debugdisplay;
         $CFG->debugdisplay = 1;
 
+        $task->microtimestart = microtime(true);
         \core\task\manager::adhoc_task_starting($task);
         \core\task\logmanager::start_logging($task);
 
@@ -472,9 +474,7 @@ class cron {
         self::set_process_title('Adhoc task: ' . $task->get_id() . ' ' . get_class($task));
         self::trace_time_and_memory();
         memory_reset_peak_usage();
-        $predbqueries = null;
         $predbqueries = $DB->perf_get_queries();
-        $pretime = microtime(1);
 
         if ($userid = $task->get_userid()) {
             // This task has a userid specified.
@@ -517,12 +517,13 @@ class cron {
                 set_debugging(DEBUG_DEVELOPER, 1);
             }
             $task->execute();
+            $task->microtimefinish = microtime(true);
             if ($DB->is_transaction_started()) {
                 throw new coding_exception("Task left transaction open");
             }
             if (isset($predbqueries)) {
                 mtrace("... used " . ($DB->perf_get_queries() - $predbqueries) . " dbqueries");
-                mtrace("... used " . (microtime(1) - $pretime) . " seconds");
+                mtrace("... used " . ($task->microtimefinish - $task->microtimestart) . " seconds");
             }
             mtrace('... used ' . display_size(memory_get_peak_usage()) . ' peak memory');
             if ($task->is_adhoc_task_delayed()) {
@@ -532,13 +533,14 @@ class cron {
                 \core\task\manager::adhoc_task_complete($task);
             }
         } catch (\Throwable $e) {
+            $task->microtimefinish = microtime(true);
             if ($DB && $DB->is_transaction_started()) {
                 error_log('Database transaction aborted automatically in ' . get_class($task));
                 $DB->force_transaction_rollback();
             }
             if (isset($predbqueries)) {
                 mtrace("... used " . ($DB->perf_get_queries() - $predbqueries) . " dbqueries");
-                mtrace("... used " . (microtime(1) - $pretime) . " seconds");
+                mtrace("... used " . ($task->microtimefinish - $task->microtimestart) . " seconds");
             }
             mtrace('... used ' . display_size(memory_get_peak_usage()) . ' peak memory');
             mtrace("Adhoc task failed: " . get_class($task) . "," . $e->getMessage());
