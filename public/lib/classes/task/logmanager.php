@@ -119,7 +119,6 @@ class logmanager {
         self::$taskloginfo = (object) [
             'dbread'    => $DB->perf_get_reads(),
             'dbwrite'   => $DB->perf_get_writes(),
-            'timestart' => microtime(true),
         ];
 
         // For simplicity's sake we always store logs on disk and flush at the end.
@@ -302,8 +301,8 @@ class logmanager {
                 $failed,
                 $DB->perf_get_reads() - self::$taskloginfo->dbread,
                 $DB->perf_get_writes() - self::$taskloginfo->dbwrite,
-                self::$taskloginfo->timestart,
-                microtime(true)
+                self::$task->microtimestart,
+                self::$task->microtimefinish,
             );
         }
 

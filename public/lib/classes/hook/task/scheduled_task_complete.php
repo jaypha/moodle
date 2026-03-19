@@ -1,0 +1,49 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace core\hook\task;
+
+use core\task\scheduled_task;
+
+/**
+ * Allow plugins to be notified when a scheduled task has finished execution.
+ * Note: This is called from both manager::scheduled_task_complete() and manager::scheduled_task_failed()
+ *
+ * The task object comes with micro timestamps for starting and finishing. These are set by the cron manager. They are not
+ * guaranteed to be set. Specifically during orphan cleanup, or if the task finish functions are called directly.
+ *
+ * @package core
+ * @author Jason den Dulk <jasondendulk@catalyst-au.net>
+ * @copyright 2026 Catalyst IT
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+#[\core\attribute\tags('task')]
+#[\core\attribute\label('Allow plugins to be notified when a scheduled task has finished execution.')]
+final class scheduled_task_complete {
+    /**
+     * Constructor.
+     *
+     * @param scheduled_task $task
+     * @param int $taskid The database ID as it appears in task_scheduled
+     * @param bool $succeeded True if the task was executed successfully.
+     */
+    public function __construct(
+        public readonly scheduled_task $task,
+        public readonly int $taskid,
+        public readonly bool $succeeded
+    ) {
+    }
+}
