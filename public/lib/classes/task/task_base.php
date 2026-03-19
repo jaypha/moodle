@@ -51,7 +51,7 @@ abstract class task_base {
     /** @var int $nextruntime - When this task is due to run next */
     private $nextruntime = 0;
 
-    /** @var int $timestarted - When this task was started */
+    /** @var int $timestarted - Timestamp when this task was started (in seconds). */
     private $timestarted = null;
 
     /** @var string $hostname - Hostname where this task was started and PHP process ID */
@@ -59,6 +59,14 @@ abstract class task_base {
 
     /** @var int $pid - PHP process ID that is running the task */
     private $pid = null;
+
+    // The following values are only set during actual task execution. They are not set during orphan cleanup.
+
+    /** @var float|null $microtimestart - The start time of the task with microseconds. Not saved to the database, and not wiped. */
+    public $microtimestart = null;
+
+    /** @var float|null $microtimefinish - The finish time of the task with microseconds. Not saved to the database, and not wiped. */
+    public $microtimefinish = null;
 
     /**
      * Get a descriptive name for the task (shown to admins)
@@ -274,5 +282,4 @@ abstract class task_base {
         // This result is aggregated with other running tasks checks before display.
         return new result($status, '', $details);
     }
-
 }
