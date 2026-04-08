@@ -80,6 +80,14 @@ class manager {
      */
     protected static ?int $mode = null;
 
+    /** @var array Task statistics temporary storage. */
+    protected static array $tempstats = [];
+    /** @var float The starting time of the current task. */
+    protected static float $runningtaskstarttime = 0.0;
+
+    /** @var string Task statistics DB table. */
+    public const TABLE_TASKSTATS = 'task_stats';
+
     /**
      * Reset the state of the task manager.
      */
@@ -1123,6 +1131,7 @@ class manager {
      */
     private static function task_starting(task_base $task): void {
         self::$runningtask = $task;
+        self::$runningtaskstarttime = microtime(true);
 
         // Add \core\task\manager::fail_running_task to shutdown manager, so we can ensure running tasks fail on shutdown.
         if (!self::$registeredshutdownhandler) {
@@ -1204,6 +1213,15 @@ class manager {
         global $DB;
 
         $clock = \core\di::get(\core\clock::class);
+
+        // Record the duration of the task for later processing.
+        self::$tempstats[] = [
+            'component' => $task->get_component(),
+            'classname' => self::get_canonical_class_name($task),
+            'starttime' => self::$runningtaskstarttime,
+            'finishtime' => microtime(true),
+            'type' => database_logger::TYPE_ADHOC,
+        ];
 
         // Finalise the log output.
         if ($finaliselog) {
@@ -1291,6 +1309,17 @@ class manager {
     public static function adhoc_task_complete(adhoc_task $task) {
         global $DB;
 
+        $clock = \core\di::get(\core\clock::class);
+
+        // Record the duration of the task for later processing.
+        self::$tempstats[] = [
+            'component' => $task->get_component(),
+            'classname' => self::get_canonical_class_name($task),
+            'starttime' => self::$runningtaskstarttime,
+            'finishtime' => microtime(true),
+            'type' => database_logger::TYPE_ADHOC,
+        ];
+
         // Finalise the log output.
         logmanager::finalise_log();
         $task->set_timestarted();
@@ -1317,6 +1346,17 @@ class manager {
         global $DB;
 
         $clock = \core\di::get(\core\clock::class);
+
+        $classname = self::get_canonical_class_name($task);
+
+        // Record the duration of the task for later processing.
+        self::$tempstats[] = [
+            'component' => $task->get_component(),
+            'classname' => $classname,
+            'starttime' => self::$runningtaskstarttime,
+            'finishtime' => microtime(true),
+            'type' => database_logger::TYPE_SCHEDULED,
+        ];
 
         // Finalise the log output.
         if ($finaliselog) {
@@ -1346,8 +1386,6 @@ class manager {
         $task->set_timestarted();
         $task->set_hostname();
         $task->set_pid();
-
-        $classname = self::get_canonical_class_name($task);
 
         $record = $DB->get_record('task_scheduled', ['classname' => $classname]);
         $record->nextruntime = $clock->time() + $delay;
@@ -1443,13 +1481,23 @@ class manager {
 
         $clock = \core\di::get(\core\clock::class);
 
+        $classname = self::get_canonical_class_name($task);
+
+        // Record the duration of the task for later processing.
+        self::$tempstats[] = [
+            'component' => $task->get_component(),
+            'classname' => $classname,
+            'starttime' => self::$runningtaskstarttime,
+            'finishtime' => microtime(true),
+            'type' => database_logger::TYPE_SCHEDULED,
+        ];
+
         // Finalise the log output.
         logmanager::finalise_log();
         $task->set_timestarted();
         $task->set_hostname();
         $task->set_pid();
 
-        $classname = self::get_canonical_class_name($task);
         $record = $DB->get_record('task_scheduled', ['classname' => $classname]);
         if ($record) {
             $record->lastruntime = $clock->time();
@@ -1924,5 +1972,80 @@ class manager {
             select: 'attemptsavailable = 0 AND firststartingtime < :time',
             params: ['time' => $clock->time() - $difftime],
         );
+    }
+
+    /**
+     * Update the task statistics in the database.
+     *
+     * @param array|null $statdata
+     */
+    public static function update_task_stats(?array $statdata = null) {
+        global $DB;
+
+        if ($statdata === null) {
+            $statdata = self::$tempstats;
+        }
+
+        // Read in the current stats and set up the processors.
+        $processors = [];
+        $records = $DB->get_records(self::TABLE_TASKSTATS);
+        foreach ($records as $record) {
+            $processors[$record->classname] = new stat_processor($record->count, $record->mean, $record->ssd, $record->sumduration);
+        }
+
+        $newrecords = [];
+
+        // Apply data to the processors.
+        foreach ($statdata as $stat) {
+            $classname = $stat['classname'];
+            if (!array_key_exists($classname, $processors)) {
+                $processors[$classname] = new stat_processor();
+                $statobj = new \stdClass();
+                $statobj->component = $stat['component'];
+                $statobj->classname = $classname;
+                $statobj->type = $stat['type'];
+                $newrecords[] = $statobj;
+            }
+            $processors[$classname]->add_value($stat['finishtime'] - $stat['starttime']);
+        }
+
+        // Get new calculated values from the processors and update records in the database.
+        foreach ($records as $record) {
+            $processor = $processors[$record->classname];
+            // Only update if it has actually changed.
+            if ($processor->changed) {
+                $processor->to_record($record);
+                $DB->update_record_raw(self::TABLE_TASKSTATS, $record, true);
+            }
+        }
+
+        // Get new calculated values from the processors for new tasks and insert records in the database.
+        if (count($newrecords)) {
+            foreach ($newrecords as $record) {
+                $processor = $processors[$record->classname];
+                $processor->to_record($record);
+            }
+            $DB->insert_records(self::TABLE_TASKSTATS, $newrecords);
+        }
+    }
+
+    /**
+     * Clear the database table of the records. Note, if both $ids and $classnames are set, $ids takes precedence.
+     * Will remove all stats if neither is set.
+     *
+     * @param array $ids List of database IDs o remove stats for.
+     * @param array $classnames List of classnames to remove stats for.
+     */
+    public static function clear_stats(array $ids = [], array $classnames = []) {
+        global $DB;
+        if (!empty($ids)) {
+            [$insql, $params] = $DB->get_in_or_equal($ids, true);
+            $DB->delete_records_select(self::TABLE_TASKSTATS, 'id ' . $insql, $params);
+        } else if (!empty($classnames)) {
+            [$insql, $params] = $DB->get_in_or_equal($classnames, true);
+            $DB->delete_records_select(self::TABLE_TASKSTATS, 'classname ' . $insql, $params);
+        } else {
+            $DB->delete_records(self::TABLE_TASKSTATS);
+        }
     }
 }

@@ -146,12 +146,14 @@ $classname = $options['classname'];
 if (!empty($options['id'])) {
     $taskid = (int) $options['id'];
     \core\cron::run_adhoc_task($taskid);
+    \core\task\manager::update_task_stats();
     exit(0);
 }
 
 // Run all failed tasks.
 if (!empty($options['failed'])) {
     \core\cron::run_failed_adhoc_tasks($classname);
+    \core\task\manager::update_task_stats();
     exit(0);
 }
 
@@ -172,3 +174,4 @@ if (!$execute) {
 }
 
 \core\cron::run_adhoc_tasks(time(), $keepalive, $checklimits, null, $taskslimit, $classname);
+\core\task\manager::update_task_stats();
