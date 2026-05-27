@@ -326,9 +326,11 @@ trait backup_question_set_reference_trait {
             $inparams,
         );
 
+        $items = [];
         foreach ($qbeids as $qbeid) {
-            backup_structure_dbops::insert_backup_ids_record($backupid, 'question_bank_entry', $qbeid);
+            $items[] = ['backupid' => $backupid, 'itemname' => 'question_bank_entry', 'itemid' => $qbeid];
         }
+        backup_structure_dbops::insert_backup_ids_records($items);
     }
 }
 
@@ -2415,14 +2417,16 @@ class backup_activity_grade_items_to_ids extends backup_execution_step {
 
     protected function define_execution() {
 
-        // Fetch all activity grade items
+        // Fetch all activity grade items.
         if ($items = grade_item::fetch_all(array(
                          'itemtype' => 'mod', 'itemmodule' => $this->task->get_modulename(),
                          'iteminstance' => $this->task->get_activityid(), 'courseid' => $this->task->get_courseid()))) {
-            // Annotate them in backup_ids
+            // Annotate them in backup_ids.
+            $backupitems = [];
             foreach ($items as $item) {
-                backup_structure_dbops::insert_backup_ids_record($this->get_backupid(), 'grade_item', $item->id);
+                $backupitems[] = ['backupid' => $this->get_backupid(), 'itemname' => 'grade_item', 'itemid' => $item->id];
             }
+            backup_structure_dbops::insert_backup_ids_records($backupitems);
         }
     }
 }
@@ -2476,11 +2480,13 @@ class backup_annotate_course_groups_and_groupings extends backup_execution_step 
     protected function define_execution() {
         global $DB;
 
+        $backupitems = [];
+
         // Get all the course groups
         if ($groups = $DB->get_records('groups', array(
                 'courseid' => $this->task->get_courseid()))) {
             foreach ($groups as $group) {
-                backup_structure_dbops::insert_backup_ids_record($this->get_backupid(), 'group', $group->id);
+                $backupitems[] = ['backupid' => $this->get_backupid(), 'itemname' => 'group', 'itemid' => $group->id];
             }
         }
 
@@ -2488,9 +2494,10 @@ class backup_annotate_course_groups_and_groupings extends backup_execution_step 
         if ($groupings = $DB->get_records('groupings', array(
                 'courseid' => $this->task->get_courseid()))) {
             foreach ($groupings as $grouping) {
-                backup_structure_dbops::insert_backup_ids_record($this->get_backupid(), 'grouping', $grouping->id);
+                $backupitems[] = ['backupid' => $this->get_backupid(), 'itemname' => 'grouping', 'itemid' => $grouping->id];
             }
         }
+        backup_structure_dbops::insert_backup_ids_records($backupitems);
     }
 }
 
@@ -2505,14 +2512,16 @@ class backup_annotate_groups_from_groupings extends backup_execution_step {
         // Fetch all the annotated groupings
         if ($groupings = $DB->get_records('backup_ids_temp', array(
                 'backupid' => $this->get_backupid(), 'itemname' => 'grouping'))) {
+            $backupitems = [];
             foreach ($groupings as $grouping) {
                 if ($groups = $DB->get_records('groupings_groups', array(
                         'groupingid' => $grouping->itemid))) {
                     foreach ($groups as $group) {
-                        backup_structure_dbops::insert_backup_ids_record($this->get_backupid(), 'group', $group->groupid);
+                        $backupitems[] = ['backupid' => $this->get_backupid(), 'itemname' => 'group', 'itemid' => $group->groupid];
                     }
                 }
             }
+            backup_structure_dbops::insert_backup_ids_records($backupitems);
         }
     }
 }
@@ -2528,13 +2537,15 @@ class backup_annotate_scales_from_outcomes extends backup_execution_step {
         // Fetch all the annotated outcomes
         if ($outcomes = $DB->get_records('backup_ids_temp', array(
                 'backupid' => $this->get_backupid(), 'itemname' => 'outcome'))) {
+            $backupitems = [];
             foreach ($outcomes as $outcome) {
                 if ($scale = $DB->get_record('grade_outcomes', array(
                         'id' => $outcome->itemid))) {
                     // Annotate as scalefinal because it's > 0
-                    backup_structure_dbops::insert_backup_ids_record($this->get_backupid(), 'scalefinal', $scale->scaleid);
+                    $backupitems[] = ['backupid' => $this->get_backupid(), 'itemname' => 'scalefinal', 'itemid' => $scale->scaleid];
                 }
             }
+            backup_structure_dbops::insert_backup_ids_records($backupitems);
         }
     }
 }
@@ -2563,27 +2574,30 @@ class backup_annotate_all_question_files extends backup_execution_step {
         $components = backup_qtype_plugin::get_components_and_fileareas();
         $progress = $this->task->get_progress();
         $progress->start_progress($this->get_name());
+
+        $questionfileareas = [
+            'questiontext',
+            'generalfeedback',
+            'answer',
+            'answerfeedback',
+            'hint',
+            'correctfeedback',
+            'partiallycorrectfeedback',
+            'incorrectfeedback',
+        ];
         // Let's loop
         foreach($rs as $record) {
-            // Backup all the file areas the are managed by the core question component.
+            // Backup all the file areas that are managed by the core question component.
             // That is, by the question_type base class. In particular, we don't want
             // to include files belonging to responses here.
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'questiontext', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'generalfeedback', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'answer', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'answerfeedback', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'hint', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'correctfeedback', null,
-                                        $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question',
-                                        'partiallycorrectfeedback', null, $progress);
-            backup_structure_dbops::annotate_files($this->get_backupid(), $record->contextid, 'question', 'incorrectfeedback', null,
-                                        $progress);
+            backup_structure_dbops::annotate_files(
+                $this->get_backupid(),
+                $record->contextid,
+                'question',
+                $questionfileareas,
+                null,
+                $progress
+            );
 
             // For files belonging to question types, we make the leap of faith that
             // all the files belonging to the question type are part of the question definition,
@@ -2815,12 +2829,10 @@ class backup_annotate_all_user_files extends backup_execution_step {
                 continue; // User has not context, sure it's a deleted user, so cannot have files
             }
             // Proceed with every user filearea
-            foreach ($fileareas as $filearea) {
-                // We don't need to specify itemid ($userid - 5th param) as far as by
-                // context we can get all the associated files. See MDL-22092
-                backup_structure_dbops::annotate_files($this->get_backupid(), $userctx->id, 'user', $filearea, null);
-                $progress->progress();
-            }
+            // We don't need to specify itemid ($userid - 5th param) as far as by
+            // context we can get all the associated files. See MDL-22092.
+            backup_structure_dbops::annotate_files($this->get_backupid(), $userctx->id, 'user', $fileareas, null);
+            $progress->progress();
         }
         $progress->end_progress();
         $rs->close();

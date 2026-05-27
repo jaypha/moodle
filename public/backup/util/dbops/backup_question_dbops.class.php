@@ -65,13 +65,15 @@ abstract class backup_question_dbops extends backup_dbops {
                 $categories += self::get_parent_categories($parentid);
             }
         }
+
+        $items = [];
         // Insert annotations of the found categories.
         foreach (array_keys($categories) as $categoryid) {
-            backup_structure_dbops::insert_backup_ids_record($backupid, 'question_category', $categoryid);
+            $items[] = ['backupid' => $backupid, 'itemname' => 'question_category', 'itemid' => $categoryid];
         }
         // For these categories, we want to include all questions.
         foreach (array_keys($contextcategories) as $categoryid) {
-            backup_structure_dbops::insert_backup_ids_record($backupid, 'question_category_complete', $categoryid);
+            $items[] = ['backupid' => $backupid, 'itemname' => 'question_category_complete', 'itemid' => $categoryid];
         }
         // For these categories, we only want to include the questions that have been annotated.
         // Exclude those where we're already including all questions.
@@ -80,8 +82,9 @@ abstract class backup_question_dbops extends backup_dbops {
             array_keys($contextcategories),
         );
         foreach ($partialcategories as $categoryid) {
-            backup_structure_dbops::insert_backup_ids_record($backupid, 'question_category_partial', $categoryid);
+            $items[] = ['backupid' => $backupid, 'itemname' => 'question_category_partial', 'itemid' => $categoryid];
         }
+        backup_structure_dbops::insert_backup_ids_records($items);
     }
 
     /**
@@ -106,7 +109,6 @@ abstract class backup_question_dbops extends backup_dbops {
      * Delete all the annotated questions present in backup_ids_temp
      */
     public static function delete_temp_questions($backupid) {
-        global $DB;
-        $DB->delete_records('backup_ids_temp', array('backupid' => $backupid, 'itemname' => 'question'));
+        backup_structure_dbops::delete_backup_ids($backupid, 'question');
     }
 }

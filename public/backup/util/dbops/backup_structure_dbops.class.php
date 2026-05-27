@@ -88,6 +88,9 @@ abstract class backup_structure_dbops extends backup_dbops {
         return $newparams;
     }
 
+    /** @var array Record itemids of annotations to avoid storing duplicates. */
+    protected static $backupids = [];
+
     public static function insert_backup_ids_record($backupid, $itemname, $itemid) {
         global $DB;
         // We need to do some magic with scales (that are stored in negative way)
@@ -98,11 +101,59 @@ abstract class backup_structure_dbops extends backup_dbops {
         if ($itemid <= 0 || is_null($itemid)) {
             return;
         }
-        // TODO: Analyze if some static (and limited) cache by the 3 params could save us a bunch of record_exists() calls
-        // Note: Sure it will!
-        if (!$DB->record_exists('backup_ids_temp', array('backupid' => $backupid, 'itemname' => $itemname, 'itemid' => $itemid))) {
+        if (!isset(self::$backupids[$backupid][$itemname][$itemid])) {
             $DB->insert_record('backup_ids_temp', array('backupid' => $backupid, 'itemname' => $itemname, 'itemid' => $itemid));
+            self::$backupids[$backupid][$itemname][$itemid] = true;
         }
+    }
+
+    /**
+     * Bulk insert an array of backup IDs.
+     *
+     * @param array $backupitems Each member must have a backupid, and itemname, and an itemid.
+     */
+    public static function insert_backup_ids_records(array $backupitems) {
+        global $DB;
+
+        $toinsert = [];
+        foreach ($backupitems as $item) {
+            // We need to do some magic with scales (that are stored in negative way).
+            if ($item['itemname'] == 'scale') {
+                $item['itemid'] = -($item['itemid']);
+            }
+            // Now, we skip any annotation with negatives/zero/nulls, ids table only stores true id (always > 0).
+            if ($item['itemid'] <= 0 || is_null($item['itemid'])) {
+                continue;
+            }
+
+            if (!isset(self::$backupids[$item['backupid']][$item['itemname']][$item['itemid']])) {
+                $toinsert[] = $item;
+                self::$backupids[$item['backupid']][$item['itemname']][$item['itemid']] = true;
+            }
+        }
+        if (count($toinsert) > 0) {
+            $DB->insert_records('backup_ids_temp', $toinsert);
+        }
+    }
+
+    /**
+     * Remove backup IDs.
+     *
+     * @param string $backupid
+     * @param string $itemname
+     */
+    public static function delete_backup_ids(string $backupid, string $itemname) {
+        global $DB;
+        $DB->delete_records('backup_ids_temp', ['backupid' => $backupid, 'itemname' => $itemname]);
+        unset(self::$backupids[$backupid][$itemname]);
+    }
+
+    /**
+     * Purge all backup IDs. Call this whenever the temp ID table is truncated or deleted.
+     * @return void
+     */
+    public static function purge_backup_ids() {
+        self::$backupids = [];
     }
 
     /**
@@ -111,8 +162,8 @@ abstract class backup_structure_dbops extends backup_dbops {
      * @param string $backupid Backup ID
      * @param int $contextid Context id
      * @param string $component Component
-     * @param string $filearea File area
-     * @param int $itemid Item id
+     * @param string|array|null $filearea A single file area or an array of file areas.
+     * @param int|array|null $itemid A single item ID or an array of item IDs.
      * @param \core\progress\base $progress
      */
     public static function annotate_files($backupid, $contextid, $component, $filearea, $itemid,
@@ -125,24 +176,33 @@ abstract class backup_structure_dbops extends backup_dbops {
         $params = array($contextid, $component);
 
         if (!is_null($filearea)) { // Add filearea to query and params if necessary
-            $sql .= ' AND filearea = ?';
-            $params[] = $filearea;
+            [$fileareasql, $fileareaparams] = $DB->get_in_or_equal($filearea);
+            $sql .= ' AND filearea ' . $fileareasql;
+            $params = array_merge($params, $fileareaparams);
         }
 
         if (!is_null($itemid)) { // Add itemid to query and params if necessary
-            $sql .= ' AND itemid = ?';
-            $params[] = $itemid;
+            [$itemidsql, $itemidparams] = $DB->get_in_or_equal($itemid);
+            $sql .= ' AND itemid ' . $itemidsql;
+            $params = array_merge($params, $itemidparams);
         }
         if ($progress) {
             $progress->start_progress('');
         }
         $rs = $DB->get_recordset_sql($sql, $params);
+        $items = [];
         foreach ($rs as $record) {
-            if ($progress) {
-                $progress->progress();
+            // Do an insert every 1000 records.
+            if (count($items) == 1000) {
+                if ($progress) {
+                    $progress->progress();
+                }
+                self::insert_backup_ids_records($items);
+                $items = [];
             }
-            self::insert_backup_ids_record($backupid, 'file', $record->id);
+            $items[] = ['backupid' => $backupid, 'itemname' => 'file', 'itemid' => $record->id];
         }
+        self::insert_backup_ids_records($items);
         if ($progress) {
             $progress->end_progress();
         }
@@ -162,18 +222,29 @@ abstract class backup_structure_dbops extends backup_dbops {
         $progress->start_progress('move_annotations_to_final');
         $rs = $DB->get_recordset('backup_ids_temp', array('backupid' => $backupid, 'itemname' => $itemname));
         $progress->progress();
+        $ids = [];
+        $concat = $DB->sql_concat('itemname', "'final'");
         foreach($rs as $annotation) {
-            // If corresponding 'itemfinal' annotation does not exist, update 'item' to 'itemfinal'
-            if (! $DB->record_exists('backup_ids_temp', array('backupid' => $backupid,
-                                                              'itemname' => $itemname . 'final',
-                                                              'itemid' => $annotation->itemid))) {
-                $DB->set_field('backup_ids_temp', 'itemname', $itemname . 'final', array('id' => $annotation->id));
+            if (!isset(self::$backupids[$backupid][$itemname . 'final'][$annotation->itemid])) {
+                if (count($ids) == 1000) {
+                    [$inorequal, $params] = $DB->get_in_or_equal($ids);
+                    $DB->execute("UPDATE {backup_ids_temp} SET itemname = $concat WHERE id $inorequal", $params);
+                    $progress->progress();
+                    $ids = [];
+                }
+                $ids[] = $annotation->id;
+                self::$backupids[$backupid][$itemname . 'final'][$annotation->itemid] = true;
             }
             $progress->progress();
         }
         $rs->close();
+        if (count($ids)) {
+            [$inorequal, $params] = $DB->get_in_or_equal($ids);
+            $DB->execute("UPDATE {backup_ids_temp} SET itemname = $concat WHERE id $inorequal", $params);
+            $progress->progress();
+        }
         // All the remaining $itemname annotations can be safely deleted
-        $DB->delete_records('backup_ids_temp', array('backupid' => $backupid, 'itemname' => $itemname));
+        self::delete_backup_ids($backupid, $itemname);
         $progress->end_progress();
     }
 
@@ -182,6 +253,9 @@ abstract class backup_structure_dbops extends backup_dbops {
      */
     public static function annotations_exist($backupid, $itemname) {
         global $DB;
-        return (bool)$DB->count_records('backup_ids_temp', array('backupid' => $backupid, 'itemname' => $itemname));
+        return (
+            isset(self::$backupids[$backupid][$itemname]) ||
+            $DB->count_records('backup_ids_temp', ['backupid' => $backupid, 'itemname' => $itemname])
+        );
     }
 }
