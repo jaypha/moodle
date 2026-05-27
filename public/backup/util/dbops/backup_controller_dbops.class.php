@@ -191,6 +191,7 @@ abstract class backup_controller_dbops extends backup_dbops {
         if ($dbman->table_exists($targettablename)) {
             $table = new xmldb_table($targettablename);
             $dbman->drop_table($table); // And drop it
+            backup_structure_dbops::purge_backup_ids();
         }
     }
 
