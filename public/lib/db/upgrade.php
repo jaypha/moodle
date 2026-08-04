@@ -2381,5 +2381,32 @@ function xmldb_main_upgrade($oldversion) {
     // Automatically generated Moodle v5.3.0 release upgrade line.
     // Put any upgrade step following this.
 
+    if ($oldversion < 2026100500.03) {
+        // Define table task_stats to be created.
+        $table = new xmldb_table('task_stats');
+
+        // Adding fields to table.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('type', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('component', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('classname', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('count', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sumduration', XMLDB_TYPE_FLOAT, '20,10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('maxduration', XMLDB_TYPE_FLOAT, '20,10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('mean', XMLDB_TYPE_FLOAT, '20,10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('ssd', XMLDB_TYPE_FLOAT, '20,10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sd', XMLDB_TYPE_FLOAT, '20,10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('classname', XMLDB_KEY_UNIQUE, ['classname']);
+
+        // Conditionally launch create table.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_main_savepoint(true, 2026100500.03);
+    }
     return true;
 }
