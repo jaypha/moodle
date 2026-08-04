@@ -3558,6 +3558,26 @@
         <INDEX NAME="timestart" UNIQUE="false" FIELDS="timestart"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="task_stats" COMMENT="Mean, variance and duration log of tasks.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="type" TYPE="int" LENGTH="4" NOTNULL="true" SEQUENCE="false" COMMENT="The type of task. Scheduled task = 0; Adhoc task = 1."/>
+        <FIELD NAME="component" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="classname" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="count" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Number of values"/>
+        <FIELD NAME="sumduration" TYPE="float" LENGTH="20" DECIMALS="10" NOTNULL="true" SEQUENCE="false" COMMENT="Sum of the task durations"/>
+        <FIELD NAME="maxduration" TYPE="float" LENGTH="20" DECIMALS="10" NOTNULL="true" SEQUENCE="false" COMMENT="Maximum of the task durations"/>
+        <FIELD NAME="mean" TYPE="float" LENGTH="20" DECIMALS="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="ssd" TYPE="float" LENGTH="20" DECIMALS="10" NOTNULL="true" SEQUENCE="false" COMMENT="Sum of squared deviations"/>
+        <FIELD NAME="sd" TYPE="float" LENGTH="20" DECIMALS="10" NOTNULL="true" SEQUENCE="false" COMMENT="Standard deviation"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="classname" UNIQUE="true" FIELDS="classname"/>
+      </INDEXES>
+    </TABLE>
     <TABLE NAME="messageinbound_handlers" COMMENT="Inbound Message Handler definitions.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>

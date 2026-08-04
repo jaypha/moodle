@@ -1,0 +1,10 @@
+issueNumber: MDL-85173
+notes:
+  core:
+    - message: >-
+        Added a task statistics utility, to record info about tasks when run,
+        and displaying them in a report.
+        Added update_task_stats() to core\task\manager.php.
+        Added task_stat_shaping_task scheduled task.
+        Added task_stat to reports.
+      type: improved

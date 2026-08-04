@@ -158,6 +158,8 @@ class cron {
                 mtrace($message);
             }
         } while ($runagain);
+
+        \core\task\manager::update_task_stats();
     }
 
     /**
