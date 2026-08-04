@@ -523,4 +523,14 @@ $tasks = array(
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        'classname' => 'core\task\task_stat_shaping_task',
+        'blocking' => 0,
+        'minute' => 0,
+        'hour' => 0,
+        'day' => '*',
+        'dayofweek' => 1,
+        'month' => '*',
+        'disabled' => false,
+    ],
 );

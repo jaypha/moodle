@@ -469,6 +469,50 @@ if ($hassiteconfig) {
         ));
     }
 
+    // Task statistics.
+    $ADMIN->add(
+        'taskconfig',
+        new admin_externalpage(
+            'taskstats',
+            new lang_string('taskstatistics', 'admin'),
+            "{$CFG->wwwroot}/{$CFG->admin}/taskstats.php"
+        )
+    );
+
+    $temp = new admin_settingpage('taskstatsconfig', new lang_string('taskstatisticssettings', 'admin'));
+    $temp->add(
+        new admin_setting_heading(
+            'taskstatshaping',
+            get_string('taskstatshaping', 'admin'),
+            get_string('taskstatshaping_desc', 'admin')
+        )
+    );
+
+    $temp->add(
+        new admin_setting_configselect(
+            'taskstat_shape_amount',
+            get_string('taskstat_shape_amount', 'admin'),
+            get_string('taskstat_shape_amount_desc', 'admin'),
+            50,
+            [
+                10 => '10%',
+                50 => '50%',
+                90 => '90%',
+            ]
+        )
+    );
+    $temp->add(
+        new admin_setting_configtext(
+            'taskstat_shape_threshold',
+            get_string('taskstat_shape_threshold', 'admin'),
+            get_string('taskstat_shape_threshold_desc', 'admin'),
+            10,
+            PARAM_INT
+        )
+    );
+
+    $ADMIN->add('taskconfig', $temp);
+
     // Email.
 
     // Outgoing mail configuration.
