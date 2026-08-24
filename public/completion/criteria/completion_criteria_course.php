@@ -158,6 +158,7 @@ class completion_criteria_course extends completion_criteria {
         global $DB;
 
         $timefrom = $constraints['timefrom'] ?? null;
+        $courseid = $constraints['courseid'] ?? null;
         $courseinstance = $constraints['courseinstance'] ?? null;
         $userid = $constraints['userid'] ?? null;
 
@@ -180,6 +181,11 @@ class completion_criteria_course extends completion_criteria {
         if (!is_null($timefrom)) {
             $sql .= " AND cc.timecompleted >= :timefrom";
             $params['timefrom'] = $timefrom;
+        }
+
+        if (!is_null($courseid)) {
+            $sql .= " AND c.id = :courseid";
+            $params['courseid'] = $courseid;
         }
 
         if (!is_null($courseinstance)) {
