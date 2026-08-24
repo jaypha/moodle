@@ -30,6 +30,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(\completion_criteria_grade::class)]
 #[CoversClass(\completion_criteria_duration::class)]
 #[CoversClass(\completion_criteria_activity::class)]
+#[CoversClass(\completion_criteria_course::class)]
 #[CoversClass(\core\task\completion_criteria_date_check_task::class)]
 #[CoversClass(\core\task\completion_criteria_duration_check_task::class)]
 final class completion_criteria_test extends \advanced_testcase {
@@ -596,5 +597,244 @@ final class completion_criteria_test extends \advanced_testcase {
 
         $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course2->id]);
         $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course marks a course complete once its prerequisite course is complete.
+     */
+    public function test_completion_criteria_course(): void {
+        $timecompleted = 1610000000;
+
+        // A prerequisite course, and a course whose completion depends on it.
+        $prereq = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course = $this->create_dependent_course($prereq);
+
+        // Enrol the user in the dependent course and complete the prerequisite.
+        $user = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->mark_course_complete($prereq, $user, $timecompleted);
+
+        // Run the course criteria cron with no constraints, then aggregate.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron();
+        // Ensure items flagged during the cron are aggregated in the following run (see MDL-33320 behaviour).
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // The dependent course is completed at the prerequisite's completion time.
+        $ccompletion = new \completion_completion(['userid' => $user->id, 'course' => $course->id]);
+        $this->assertEquals($timecompleted, $ccompletion->timecompleted);
+        $this->assertTrue($ccompletion->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course with a timefrom constraint (prerequisite completion time).
+     */
+    public function test_completion_criteria_course_with_timefrom_constraint(): void {
+        $oldtime = 1600000000;
+        $recenttime = 1620000000;
+        $timefrom = 1610000000;
+
+        // A prerequisite course and a course that depends on it.
+        $prereq = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course = $this->create_dependent_course($prereq);
+
+        // User 1 completed the prerequisite after $timefrom, user 2 before it.
+        $user1 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $user2 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->mark_course_complete($prereq, $user1, $recenttime);
+        $this->mark_course_complete($prereq, $user2, $oldtime);
+
+        // Constrain the cron to prerequisite completions at or after $timefrom.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron(['timefrom' => $timefrom]);
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Only user 1 (recent prerequisite completion) should complete the dependent course.
+        $ccompletion1 = new \completion_completion(['userid' => $user1->id, 'course' => $course->id]);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course with a courseid constraint (the dependent course).
+     */
+    public function test_completion_criteria_course_with_courseid_constraint(): void {
+        $timecompleted = 1610000000;
+
+        // One prerequisite, two dependent courses that each require it.
+        $prereq = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course1 = $this->create_dependent_course($prereq);
+        $course2 = $this->create_dependent_course($prereq);
+
+        // One user enrolled in both dependent courses, with the prerequisite completed.
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course1->id, 'student');
+        $this->getDataGenerator()->enrol_user($user->id, $course2->id, 'student');
+        $this->mark_course_complete($prereq, $user, $timecompleted);
+
+        // Constrain the cron to course1 only.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron(['courseid' => $course1->id]);
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Only course1 should be completed for the user.
+        $ccompletion1 = new \completion_completion(['userid' => $user->id, 'course' => $course1->id]);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user->id, 'course' => $course2->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course with a courseinstance constraint (the prerequisite course).
+     */
+    public function test_completion_criteria_course_with_courseinstance_constraint(): void {
+        $timecompleted = 1610000000;
+
+        // Two prerequisites, each with its own dependent course.
+        $prereq1 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course1 = $this->create_dependent_course($prereq1);
+
+        $prereq2 = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course2 = $this->create_dependent_course($prereq2);
+
+        // One user enrolled in both dependent courses, with both prerequisites completed.
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course1->id, 'student');
+        $this->getDataGenerator()->enrol_user($user->id, $course2->id, 'student');
+        $this->mark_course_complete($prereq1, $user, $timecompleted);
+        $this->mark_course_complete($prereq2, $user, $timecompleted);
+
+        // Constrain the cron to criteria depending on prereq1.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron(['courseinstance' => $prereq1->id]);
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Only course1 (which depends on prereq1) should be completed.
+        $ccompletion1 = new \completion_completion(['userid' => $user->id, 'course' => $course1->id]);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user->id, 'course' => $course2->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course with a userid constraint.
+     */
+    public function test_completion_criteria_course_with_userid_constraint(): void {
+        $timecompleted = 1610000000;
+
+        // A prerequisite and a dependent course.
+        $prereq = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course = $this->create_dependent_course($prereq);
+
+        // Two users, both enrolled in the dependent course and both completing the prerequisite.
+        $user1 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $user2 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->mark_course_complete($prereq, $user1, $timecompleted);
+        $this->mark_course_complete($prereq, $user2, $timecompleted);
+
+        // Constrain the cron to user1 only.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron(['userid' => $user1->id]);
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Only user1 should complete the dependent course.
+        $ccompletion1 = new \completion_completion(['userid' => $user1->id, 'course' => $course->id]);
+        $this->assertTrue($ccompletion1->is_complete());
+
+        $ccompletion2 = new \completion_completion(['userid' => $user2->id, 'course' => $course->id]);
+        $this->assertFalse($ccompletion2->is_complete());
+    }
+
+    /**
+     * Test completion_criteria_course with courseid and userid constraints together.
+     */
+    public function test_completion_criteria_course_with_courseid_and_userid_constraints(): void {
+        $timecompleted = 1610000000;
+
+        // One prerequisite and two dependent courses.
+        $prereq = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course1 = $this->create_dependent_course($prereq);
+        $course2 = $this->create_dependent_course($prereq);
+
+        // Two users, each enrolled in both dependent courses, each completing the prerequisite.
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        foreach ([$course1, $course2] as $dependent) {
+            $this->getDataGenerator()->enrol_user($user1->id, $dependent->id, 'student');
+            $this->getDataGenerator()->enrol_user($user2->id, $dependent->id, 'student');
+        }
+        $this->mark_course_complete($prereq, $user1, $timecompleted);
+        $this->mark_course_complete($prereq, $user2, $timecompleted);
+
+        // Constrain the cron to user1 in course1 only.
+        $criterion = new \completion_criteria_course();
+        $criterion->cron(['courseid' => $course1->id, 'userid' => $user1->id]);
+        sleep(1);
+        $task = new \core\task\completion_regular_task();
+        $this->expectOutputRegex("/Marking complete/");
+        $task->execute();
+
+        // Only user1 in course1 should be completed.
+        $ccompletion = new \completion_completion(['userid' => $user1->id, 'course' => $course1->id]);
+        $this->assertTrue($ccompletion->is_complete());
+
+        // All other user/course combinations should remain incomplete.
+        $this->assertFalse(
+            (new \completion_completion(['userid' => $user1->id, 'course' => $course2->id]))->is_complete()
+        );
+        $this->assertFalse(
+            (new \completion_completion(['userid' => $user2->id, 'course' => $course1->id]))->is_complete()
+        );
+        $this->assertFalse(
+            (new \completion_completion(['userid' => $user2->id, 'course' => $course2->id]))->is_complete()
+        );
+    }
+
+    /**
+     * Create a course whose completion depends on a prerequisite course being completed.
+     *
+     * @param \stdClass $prereq The prerequisite course.
+     * @return \stdClass The dependent course.
+     */
+    private function create_dependent_course(\stdClass $prereq): \stdClass {
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $criteriadata = (object) [
+            'id' => $course->id,
+            'criteria_course' => [$prereq->id],
+        ];
+        $criterion = new \completion_criteria_course();
+        $criterion->update_config($criteriadata);
+        return $course;
+    }
+
+    /**
+     * Enrol a user in a course and mark that course complete for them.
+     *
+     * @param \stdClass $course The course to complete.
+     * @param \stdClass $user The user.
+     * @param int|null $timecompleted The completion time (defaults to now).
+     */
+    private function mark_course_complete(\stdClass $course, \stdClass $user, ?int $timecompleted = null): void {
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $ccompletion = new \completion_completion(['course' => $course->id, 'userid' => $user->id]);
+        $ccompletion->mark_complete($timecompleted);
     }
 }

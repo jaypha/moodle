@@ -15,7 +15,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CLI interface to create and execute a completion_criteria_full_check_task.
+ * Script to fix any completion records that were not fully processed in the past.
+ *
+ * Past bugs have left, on occasion, completion records that were not fully processsed.
+ * This script will perform a completion criteria check on five criteria: activity, course completion,
+ * grade, date and duration.
+ *
+ * Note that this script does not perform an aggregation. This will be done by the next run of the
+ * completion_regular_task scheduled task. If cron is not being used, this task should be run manually.
+ * Then completions should be ... complete.
  *
  * @package core
  * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
@@ -35,10 +43,10 @@ require_once($CFG->libdir . '/clilib.php');
         'help' => false,
         'courseid' => null,
         'courseinstance' => null,
-        'timefrom' => null,
-        'no-progress' => false,
         'userid' => null,
-        'suppress' => false,
+        'timefrom' => null,
+        'verbose' => false,
+        'no-email' => false,
     ],
     [
         'h' => 'help',
@@ -54,23 +62,24 @@ if ($unrecognised) {
 
 if ($options['help']) {
     cli_writeln(<<<EOT
-Create and execute a completion_criteria_full_check_task.
+Perform completion checks to fix any completion records that are not fully processed.
 
 Options:
   -h, --help              Print this help.
-  -c, --courseid=ID       Limit the check to a single course (constraint).
-  -u, --userid=ID         Limit the check to a user (constraint).
-      --courseinstance=ID For course completion criteria, limit to the course instance (constraint)
-      --timefrom=TS       Only consider records modified since this unix timestamp (constraint).
-      --no-progress       Disable mtrace progress output (mtraceprogress = false).
-      --suppress          Suppress notification (suppressmessages = true)
+  -c, --courseid=ID       Limit the check to a single course.
+  -u, --userid=ID         Limit the check to a user.
+      --courseinstance=ID For course completion criteria, limit the course instance (Will only check courses that
+                          depend on this one).
+      --timefrom=TS       Only consider records modified since this unix timestamp.
+      --verbose           Give extra output.
+      --no-email          Do not send out emails for course completion.
 
 Examples:
   # Run a full completion check for all courses.
-  \$ php admin/cli/run_completion_full_check.php
+  \$ php admin/cli/fix_missing_completions.php
 
   # Run the check for course 42 only.
-  \$ php admin/cli/run_completion_full_check.php --courseid=42
+  \$ php admin/cli/fix_missing_completions.php --courseid=42
 
 EOT);
     exit(0);
@@ -110,16 +119,20 @@ if ($options['userid'] !== null) {
     $constraints['userid'] = $userid;
 }
 
-// Create the task and attach its custom data.
+// Create a full check task and attach its custom data.
 $task = new \core\task\completion_criteria_full_check_task();
 $task->set_custom_data((object) [
     'constraints' => $constraints,
-    'mtraceprogress' => !$options['no-progress'],
-    'suppressmessages' => $options['suppress'],
+    'verbose' => $options['verbose'],
+    'noemail' => $options['no-email'],
 ]);
 
+if ($options['verbose']) {
+    cli_writeln('Executing completion_criteria_full_check_task' .
+        ($constraints ? ' with constraints ' . json_encode($constraints) : ' (no constraints)') . '...');
+}
 // Run it right now.
-cli_writeln('Executing completion_criteria_full_check_task' .
-    ($constraints ? ' with constraints ' . json_encode($constraints) : ' (no constraints)') . '...');
 $task->execute();
-cli_writeln('Done.');
+if ($options['verbose']) {
+    cli_writeln('Done.');
+}

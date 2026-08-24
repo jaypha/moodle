@@ -21,8 +21,8 @@ namespace core\task;
  *
  * Custom data structure (stdClass) accepted:
  *  - constraints: array of constraints (optional)
- *  - mtraceprogress: bool (optional)
- *  - supressmessages: bool (optional)
+ *  - verbose: bool (optional)
+ *  - noemail: bool (optional)
  *
  * @package   core
  * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
@@ -53,8 +53,8 @@ class completion_criteria_full_check_task extends adhoc_task {
             require_once($CFG->libdir . '/completionlib.php');
 
             $constraints = [];
-            $mtraceprogress = true;
-            $suppressmessages = false;
+            $verbose = true;
+            $noemail = false;
 
             if (!empty($data)) {
                 if (isset($data->constraints)) {
@@ -69,18 +69,18 @@ class completion_criteria_full_check_task extends adhoc_task {
                     }
                 }
 
-                if (isset($data->mtraceprogress)) {
-                    $mtraceprogress = (bool)$data->mtraceprogress;
+                if (isset($data->verbose)) {
+                    $verbose = (bool)$data->verbose;
                 }
 
-                if (isset($data->suppressmessages)) {
-                    $suppressmessages = (bool)$data->suppressmessages;
+                if (isset($data->noemail)) {
+                    $noemail = (bool)$data->noemail;
                 }
             }
 
-            if ($suppressmessages) {
-                if ($mtraceprogress && debugging()) {
-                    mtrace('Suppressing notifications during run.');
+            if ($noemail) {
+                if ($verbose) {
+                    mtrace('Suppressing emails during run.');
                 }
                 $CFG->noemeailever = 1;
                 // Disable all message apis as well (record which ones were enabled, to re-enable afterwards).
@@ -94,16 +94,16 @@ class completion_criteria_full_check_task extends adhoc_task {
 
                 $class = new $object();
                 if (method_exists($class, 'cron')) {
-                    if ($mtraceprogress && debugging()) {
+                    if ($verbose) {
                         mtrace('Running ' . $object . '->cron()');
                     }
                     $class->cron($constraints);
                 }
             }
 
-            if ($suppressmessages) {
-                if ($mtraceprogress && debugging()) {
-                    mtrace('Re-enabling notifications.');
+            if ($noemail) {
+                if ($verbose) {
+                    mtrace('Re-enabling emails.');
                 }
                 $CFG->noemeailever = 0;
                 [$insql, $inparams] = $DB->get_in_or_equal(array_column($enabledprocessors, 'id'));
