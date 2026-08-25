@@ -453,8 +453,8 @@ final class completion_criteria_test extends \advanced_testcase {
         // Run the ad-hoc task with a course constraint for course1.
         $task = new \core\task\completion_criteria_full_check_task();
         $task->set_custom_data((object)[
-            'constraints' => ['courseid' => $course1->id],
-            'mtraceprogress' => false,
+            'courseid' => $course1->id,
+            'verbose' => false,
         ]);
         $task->execute();
         // Ensure items flagged during the first pass are processed in the second run (see MDL-33320 behaviour).
@@ -505,8 +505,8 @@ final class completion_criteria_test extends \advanced_testcase {
         // Run the ad-hoc task with a course constraint for course1.
         $task = new \core\task\completion_criteria_full_check_task();
         $task->set_custom_data((object)[
-            'constraints' => ['courseid' => $course1->id],
-            'mtraceprogress' => false,
+            'courseid' => $course1->id,
+            'verbose' => false,
         ]);
         $task->execute();
         // Ensure items flagged during the first pass are processed in the second run.
@@ -579,8 +579,8 @@ final class completion_criteria_test extends \advanced_testcase {
         // Run the adhoc task constrained to course1 only.
         $task = new \core\task\completion_criteria_full_check_task();
         $task->set_custom_data((object)[
-            'constraints' => ['courseid' => $course1->id],
-            'mtraceprogress' => false,
+            'courseid' => $course1->id,
+            'verbose' => false,
         ]);
         $task->execute();
         // Ensure second pass processes items flagged during the first pass.
@@ -648,7 +648,7 @@ final class completion_criteria_test extends \advanced_testcase {
 
         // Constrain the cron to prerequisite completions at or after $timefrom.
         $criterion = new \completion_criteria_course();
-        $criterion->cron(['timefrom' => $timefrom]);
+        $criterion->cron(timefrom: $timefrom);
         sleep(1);
         $task = new \core\task\completion_regular_task();
         $this->expectOutputRegex("/Marking complete/");
@@ -681,7 +681,7 @@ final class completion_criteria_test extends \advanced_testcase {
 
         // Constrain the cron to course1 only.
         $criterion = new \completion_criteria_course();
-        $criterion->cron(['courseid' => $course1->id]);
+        $criterion->cron(courseid: $course1->id);
         sleep(1);
         $task = new \core\task\completion_regular_task();
         $this->expectOutputRegex("/Marking complete/");
@@ -717,7 +717,7 @@ final class completion_criteria_test extends \advanced_testcase {
 
         // Constrain the cron to criteria depending on prereq1.
         $criterion = new \completion_criteria_course();
-        $criterion->cron(['courseinstance' => $prereq1->id]);
+        $criterion->cron(courseinstance: $prereq1->id);
         sleep(1);
         $task = new \core\task\completion_regular_task();
         $this->expectOutputRegex("/Marking complete/");
@@ -749,7 +749,7 @@ final class completion_criteria_test extends \advanced_testcase {
 
         // Constrain the cron to user1 only.
         $criterion = new \completion_criteria_course();
-        $criterion->cron(['userid' => $user1->id]);
+        $criterion->cron(userid: $user1->id);
         sleep(1);
         $task = new \core\task\completion_regular_task();
         $this->expectOutputRegex("/Marking complete/");
@@ -786,7 +786,7 @@ final class completion_criteria_test extends \advanced_testcase {
 
         // Constrain the cron to user1 in course1 only.
         $criterion = new \completion_criteria_course();
-        $criterion->cron(['courseid' => $course1->id, 'userid' => $user1->id]);
+        $criterion->cron(courseid: $course1->id, userid: $user1->id);
         sleep(1);
         $task = new \core\task\completion_regular_task();
         $this->expectOutputRegex("/Marking complete/");

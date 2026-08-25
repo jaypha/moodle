@@ -25,8 +25,6 @@ namespace core\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class completion_criteria_grade_check_task extends adhoc_task {
-    use completion_criteria_check_trait;
-
     #[\Override]
     public function get_name() {
         return get_string('taskcompletioncriteriagradecheck', 'admin');
@@ -34,12 +32,15 @@ class completion_criteria_grade_check_task extends adhoc_task {
 
     #[\Override]
     public function execute() {
-        $data = $this->get_custom_data();
-        $constraints = [
-            'courseid' => $data->courseid,
-            'userid' => $data->userid,
-        ];
+        global $CFG;
 
-        $this->execute_inner('grade', $constraints, true);
+        if (!empty($CFG->enablecompletion)) {
+            require_once($CFG->libdir . '/completionlib.php');
+            require_once($CFG->dirroot . '/completion/criteria/completion_criteria_grade.php');
+
+            $data = $this->get_custom_data();
+            $class = new \completion_criteria_grade();
+            $class->cron(courseid: $data->courseid ?? null, userid: $data->userid ?? null);
+        }
     }
 }

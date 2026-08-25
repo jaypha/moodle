@@ -20,7 +20,8 @@ namespace core\task;
  * Ad-hoc task wrapper to run a full course completion check with optional constraints.
  *
  * Custom data structure (stdClass) accepted:
- *  - constraints: array of constraints (optional)
+ *  - timefrom: int (optional)
+ *  - courseid: int (optional)
  *  - verbose: bool (optional)
  *  - noemail: bool (optional)
  *
@@ -30,6 +31,8 @@ namespace core\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class completion_criteria_full_check_task extends adhoc_task {
+    use completion_criteria_check_trait;
+
     /**
      * Get a descriptive name for this task (shown to admins).
      *
@@ -47,36 +50,15 @@ class completion_criteria_full_check_task extends adhoc_task {
     public function execute() {
         global $COMPLETION_CRITERIA_TYPES, $CFG, $DB;
 
-        $data = $this->get_custom_data();
-
         if (!empty($CFG->enablecompletion)) {
             require_once($CFG->libdir . '/completionlib.php');
 
-            $constraints = [];
-            $verbose = true;
-            $noemail = false;
-
-            if (!empty($data)) {
-                if (isset($data->constraints)) {
-                    // Accept either array, object or JSON-encoded string.
-                    if (is_string($data->constraints)) {
-                        $data->constraints = json_decode($data->constraints);
-                    }
-                    if (is_array($data->constraints)) {
-                        $constraints = $data->constraints;
-                    } else if (is_object($data->constraints)) {
-                        $constraints = (array)$data->constraints;
-                    }
-                }
-
-                if (isset($data->verbose)) {
-                    $verbose = (bool)$data->verbose;
-                }
-
-                if (isset($data->noemail)) {
-                    $noemail = (bool)$data->noemail;
-                }
-            }
+            // Extract custom data.
+            $data = $this->get_custom_data();
+            $courseid = $data->courseid ?? null;
+            $timefrom = $data->timefrom ?? null;
+            $verbose = $data->verbose ?? false;
+            $noemail = $data->noemail ?? false;
 
             if ($noemail) {
                 if ($verbose) {
@@ -88,6 +70,13 @@ class completion_criteria_full_check_task extends adhoc_task {
                 $DB->execute('UPDATE {message_processors} SET enabled =  0');
             }
 
+            if ($verbose) {
+                $constraints = ['timefrom' => $timefrom, 'courseid' => $courseid];
+                mtrace('Constraints: ' . json_encode($constraints));
+            }
+
+            // Perform each check in turn.
+
             foreach ($COMPLETION_CRITERIA_TYPES as $type) {
                 $object = 'completion_criteria_' . $type;
                 require_once($CFG->dirroot . '/completion/criteria/' . $object . '.php');
@@ -97,10 +86,13 @@ class completion_criteria_full_check_task extends adhoc_task {
                     if ($verbose) {
                         mtrace('Running ' . $object . '->cron()');
                     }
-                    $class->cron($constraints);
+                    $class->cron(timefrom: $timefrom, courseid: $courseid);
+                    // Set the time for future use of timefrom constraints.
+                    $this->update_timefrom($type);
                 }
             }
 
+            // Finally, re-enable emails if we disabled them.
             if ($noemail) {
                 if ($verbose) {
                     mtrace('Re-enabling emails.');

@@ -34,11 +34,18 @@ class completion_criteria_date_check_task extends scheduled_task {
 
     #[\Override]
     public function execute() {
-        $constraints = [
-            'timefrom' => $this->get_timefrom('date'),
-        ];
+        global $CFG;
 
-        $this->execute_inner('date', $constraints, true);
-        set_config('completion_criteria_date_check_lasttime', $this->get_timestarted());
+        if (!empty($CFG->enablecompletion)) {
+            require_once($CFG->libdir . '/completionlib.php');
+            require_once($CFG->dirroot . '/completion/criteria/completion_criteria_date.php');
+
+            // We only want completions performed since the last task run. We need the start time so there are no gaps.
+            $timefrom = $this->get_timefrom('date');
+
+            $class = new \completion_criteria_date();
+            $class->cron($timefrom);
+            $this->update_timefrom('date');
+        }
     }
 }

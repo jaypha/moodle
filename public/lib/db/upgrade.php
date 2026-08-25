@@ -2420,10 +2420,10 @@ function xmldb_main_upgrade($oldversion) {
 
     if ($oldversion < 2026102100.01) {
         // Queue a full course completion criteria check, to clean out any old course completion criteria records that
-        // not fully processed.
+        // are not fully processed.
 
         $task = new \core\task\completion_criteria_full_check_task();
-        $task->set_custom_data(['suppressmessages' => true]);
+        $task->set_custom_data(['noemail' => true]);
         \core\task\manager::queue_adhoc_task($task);
 
         // Main savepoint reached.

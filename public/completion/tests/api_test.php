@@ -353,7 +353,7 @@ final class api_test extends \advanced_testcase {
         // Run course completions cron. Only student2 should be marked as completed.
         $coursecompletionid = \core_completion\api::mark_course_completions_activity_criteria(
             null,
-            ['timefrom' => $now - HOURSECS]
+            $now - HOURSECS
         );
         $this->assertEquals(0, $coursecompletionid);
 

@@ -17,12 +17,12 @@
 namespace core\task;
 
 /**
- * Simple task to run the regular completion cron. Will process any completion criteria that have
- * been met since the last run.
+ * Task to perform the activity completion criteria check.
  *
- * @package    core
- * @copyright  2015 Josh Willcock
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
+ * @package   core
+ * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
+ * @copyright 2026 Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
 class completion_criteria_activity_check_task extends scheduled_task {
     use completion_criteria_check_trait;
@@ -34,11 +34,18 @@ class completion_criteria_activity_check_task extends scheduled_task {
 
     #[\Override]
     public function execute() {
-        $constraints = [
-            'timefrom' => $this->get_timefrom('activity'),
-        ];
+        global $CFG;
 
-        $this->execute_inner('activity', $constraints, true);
-        set_config('completion_criteria_activity_check_lasttime', $this->get_timestarted());
+        if (!empty($CFG->enablecompletion)) {
+            require_once($CFG->libdir . '/completionlib.php');
+            require_once($CFG->dirroot . '/completion/criteria/completion_criteria_activity.php');
+
+            // We only want completions performed since the last task run. We need the start time so there are no gaps.
+            $timefrom = $this->get_timefrom('activity');
+
+            $class = new \completion_criteria_activity();
+            $class->cron($timefrom);
+            $this->update_timefrom('activity');
+        }
     }
 }

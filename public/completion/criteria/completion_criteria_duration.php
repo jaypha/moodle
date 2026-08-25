@@ -196,13 +196,11 @@ class completion_criteria_duration extends completion_criteria {
     /**
      * Find user's who have completed this criteria
      *
-     * @param array $constraints Extra constraints to place in the search.
+     * @param int|null $timefrom (Timestamp), limit the search to between $timefrom and now.
+     * @param int|null $courseid Limit the search to the specificed course.
      */
-    public function cron(array $constraints = []) {
+    public function cron(?int $timefrom = null, ?int $courseid = null) {
         global $DB;
-
-        $timefrom = $constraints['timefrom'] ?? null;
-        $courseid = $constraints['courseid'] ?? null;
 
         /*
          * Get all users who match meet this criteria.
