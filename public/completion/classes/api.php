@@ -126,12 +126,17 @@ class api {
 
     /**
      * Mark users who completed course based on activity criteria.
-     * @param array $userdata If set only marks specified user in given course else checks all courses/users.
-     * @param array $constraints Extra constraints to place in the search.
+     * @param array|null $userdata If set only marks specified user in given course else checks all courses/users.
+     * @param int|null $timefrom (Timestamp), limit the search to between $timefrom and now.
+     * @param int|null $courseid Limit the search to the specificed course.
      * @return int Completion record id if $userdata is set, 0 else.
      * @since Moodle 4.0
      */
-    public static function mark_course_completions_activity_criteria($userdata = null, array $constraints = []): int {
+    public static function mark_course_completions_activity_criteria(
+        ?array $userdata = null,
+        ?int $timefrom = null,
+        ?int $courseid = null
+    ) {
         global $DB;
 
         // Get all users who meet this criteria
@@ -172,10 +177,7 @@ class api {
                 return $result;
             }
         } else {
-            $timefrom = $constraints['timefrom'] ?? null;
-            $courseid = $constraints['courseid'] ?? null;
-
-            if ($timefrom !== null) {
+            if (!is_null($timefrom)) {
                 $sql .= " AND mc.timemodified >= :timefrom";
                 $params['timefrom'] = $timefrom;
             }

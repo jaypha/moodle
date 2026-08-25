@@ -17,7 +17,7 @@
 namespace core\task;
 
 /**
- * Trait to share methods common to criteria tasks.
+ * Trait to share timefrom methods common to criteria tasks.
  *
  * @package   core
  * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
@@ -25,32 +25,6 @@ namespace core\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 trait completion_criteria_check_trait {
-    /**
-     * Common execute code for criteria check tasks.
-     *
-     * @param string $type
-     * @param array $constraints
-     * @param bool $mtraceprogress
-     * @return void
-     */
-    protected function execute_inner(string $type, array $constraints = [], bool $mtraceprogress = false) {
-        global $CFG;
-
-        if (!empty($CFG->enablecompletion)) {
-            require_once($CFG->libdir . '/completionlib.php');
-
-            $object = 'completion_criteria_' . $type;
-
-            require_once($CFG->dirroot . '/completion/criteria/' . $object . '.php');
-
-            $class = new $object();
-            if ($mtraceprogress && debugging()) {
-                mtrace('Running completion_criteria_course->cron()');
-            }
-            $class->cron($constraints);
-        }
-    }
-
     /**
      * Calculate the timefrom to pass to the completion check.
      *
@@ -76,5 +50,14 @@ trait completion_criteria_check_trait {
         }
 
         return $timefrom;
+    }
+
+    /**
+     * Update the timefrom for the next run.
+     *
+     * @param string $type
+     */
+    protected function update_timefrom(string $type) {
+        set_config('completion_criteria_' . $type . '_check_lasttime', $this->get_timestarted());
     }
 }

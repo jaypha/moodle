@@ -152,15 +152,18 @@ class completion_criteria_course extends completion_criteria {
     /**
      * Find user's who have completed this criteria
      *
-     * @param array $constraints Extra constraints to place in the search.
+     * @param int|null $timefrom (Timestamp), limit the search to between $timefrom and now.
+     * @param int|null $courseid Limit the search to the specificed course.
+     * @param int|null $userid Limit the search to a particualr user.
+     * @param int|null $courseinstance Limit the search to the specified Course instance.
      */
-    public function cron(array $constraints = []) {
+    public function cron(
+        ?int $timefrom = null,
+        ?int $courseid = null,
+        ?int $userid = null,
+        ?int $courseinstance = null
+    ) {
         global $DB;
-
-        $timefrom = $constraints['timefrom'] ?? null;
-        $courseid = $constraints['courseid'] ?? null;
-        $courseinstance = $constraints['courseinstance'] ?? null;
-        $userid = $constraints['userid'] ?? null;
 
         // Get all users who meet this criteria.
         $sql = "SELECT DISTINCT c.id AS course,

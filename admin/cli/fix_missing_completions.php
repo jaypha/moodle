@@ -41,17 +41,14 @@ require_once($CFG->libdir . '/clilib.php');
 [$options, $unrecognised] = cli_get_params(
     [
         'help' => false,
-        'courseid' => null,
-        'courseinstance' => null,
-        'userid' => null,
         'timefrom' => null,
+        'courseid' => null,
         'verbose' => false,
         'no-email' => false,
     ],
     [
         'h' => 'help',
         'c' => 'courseid',
-        'u' => 'userid',
     ]
 );
 
@@ -67,10 +64,7 @@ Perform completion checks to fix any completion records that are not fully proce
 Options:
   -h, --help              Print this help.
   -c, --courseid=ID       Limit the check to a single course.
-  -u, --userid=ID         Limit the check to a user.
-      --courseinstance=ID For course completion criteria, limit the course instance (Will only check courses that
-                          depend on this one).
-      --timefrom=TS       Only consider records modified since this unix timestamp.
+      --timefrom=TS       Only check records that were updated after this timestamp.
       --verbose           Give extra output.
       --no-email          Do not send out emails for course completion.
 
@@ -93,43 +87,33 @@ if (empty($CFG->enablecompletion)) {
 \core\session\manager::set_user(get_admin());
 
 // Build the optional constraints from the provided options.
-$constraints = [];
 if ($options['courseid'] !== null) {
-    $courseid = (int) $options['courseid'];
+    $courseid = $options['courseid'];
+    if (!ctype_digit($courseid)) {
+        cli_error("Invalid courseid value '$courseid'.");
+    }
     if (!$DB->record_exists('course', ['id' => $courseid])) {
         cli_error("Course with id $courseid does not exist.");
     }
-    $constraints['courseid'] = $courseid;
-}
-if ($options['courseinstance'] !== null) {
-    $courseinstance = (int) $options['courseinstance'];
-    if (!$DB->record_exists('course', ['id' => $courseinstance])) {
-        cli_error("Course with id $courseinstance does not exist.");
-    }
-    $constraints['courseinstance'] = $courseinstance;
 }
 if ($options['timefrom'] !== null) {
-    $constraints['timefrom'] = (int) $options['timefrom'];
-}
-if ($options['userid'] !== null) {
-    $userid = (int) $options['userid'];
-    if (!$DB->record_exists('user', ['id' => $userid])) {
-        cli_error("User with id $userid does not exist.");
+    $timefrom = $options['timefrom'];
+    if (!ctype_digit($timefrom)) {
+        cli_error("Invalid timefrom value '$timefrom'.");
     }
-    $constraints['userid'] = $userid;
 }
 
 // Create a full check task and attach its custom data.
 $task = new \core\task\completion_criteria_full_check_task();
 $task->set_custom_data((object) [
-    'constraints' => $constraints,
-    'verbose' => $options['verbose'],
-    'noemail' => $options['no-email'],
+    'timefrom' => $options['timefrom'],
+    'courseid' => $options['courseid'],
+    'verbose' => (bool) $options['verbose'],
+    'noemail' => (bool) $options['no-email'],
 ]);
 
 if ($options['verbose']) {
-    cli_writeln('Executing completion_criteria_full_check_task' .
-        ($constraints ? ' with constraints ' . json_encode($constraints) : ' (no constraints)') . '...');
+    cli_writeln('Executing completion_criteria_full_check_task.');
 }
 // Run it right now.
 $task->execute();

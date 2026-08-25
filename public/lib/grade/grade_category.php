@@ -825,7 +825,7 @@ class grade_category extends grade_object {
                 if ($this->grade_item->itemtype == 'course') {
                     $task = new completion_criteria_grade_check_task();
                     $task->set_custom_data(['userid' => $userid, 'courseid' => $this->grade_item->courseid]);
-                    \core\task\manager::queue_adhoc_task($task);
+                    \core\task\manager::queue_adhoc_task($task, true);
                 }
                 \core\event\user_graded::create_from_grade($grade, \core\event\base::USER_OTHER)->trigger();
             }

@@ -25,8 +25,6 @@ namespace core\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class completion_criteria_course_check_task extends adhoc_task {
-    use completion_criteria_check_trait;
-
     #[\Override]
     public function get_name() {
         return get_string('taskcompletioncriteriacoursecheck', 'admin');
@@ -34,13 +32,15 @@ class completion_criteria_course_check_task extends adhoc_task {
 
     #[\Override]
     public function execute() {
-        $data = $this->get_custom_data();
+        global $CFG;
 
-        $constraints = [
-            'courseinstance' => $data->courseinstance,
-            'userid' => $data->userid,
-        ];
+        if (!empty($CFG->enablecompletion)) {
+            require_once($CFG->libdir . '/completionlib.php');
+            require_once($CFG->dirroot . '/completion/criteria/completion_criteria_course.php');
 
-        $this->execute_inner('course', $constraints, true);
+            $data = $this->get_custom_data();
+            $class = new \completion_criteria_course();
+            $class->cron(userid: $data->userid ?? null, courseinstance: $data->courseinstance ?? null);
+        }
     }
 }

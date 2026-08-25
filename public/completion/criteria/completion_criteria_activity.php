@@ -202,10 +202,11 @@ class completion_criteria_activity extends completion_criteria {
     /**
      * Find users who have completed this criteria and mark them accordingly
      *
-     * @param array $constraints Extra constraints to place in the search.
+     * @param int|null $timefrom (Timestamp), limit the search to between $timefrom and now.
+     * @param int|null $courseid Limit the search to the specificed course.
      */
-    public function cron(array $constraints = []) {
-        \core_completion\api::mark_course_completions_activity_criteria(null, $constraints);
+    public function cron(?int $timefrom = null, ?int $courseid = null) {
+        \core_completion\api::mark_course_completions_activity_criteria(null, $timefrom, $courseid);
     }
 
     /**

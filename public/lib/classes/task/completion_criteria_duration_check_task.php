@@ -34,11 +34,18 @@ class completion_criteria_duration_check_task extends scheduled_task {
 
     #[\Override]
     public function execute() {
-        $constraints = [
-            'timefrom' => $this->get_timefrom('duration'),
-        ];
+        global $CFG;
 
-        $this->execute_inner('duration', $constraints, true);
-        set_config('completion_criteria_duration_check_lasttime', $this->get_timestarted());
+        if (!empty($CFG->enablecompletion)) {
+            require_once($CFG->libdir . '/completionlib.php');
+            require_once($CFG->dirroot . '/completion/criteria/completion_criteria_duration.php');
+
+            // We only want completions performed since the last task run. We need the start time so there are no gaps.
+            $timefrom = $this->get_timefrom('duration');
+
+            $class = new \completion_criteria_duration();
+            $class->cron($timefrom);
+            $this->update_timefrom('duration');
+        }
     }
 }
