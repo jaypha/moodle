@@ -4,8 +4,12 @@ notes:
     - message: >-
         Improved times for course completion checks.
         Added 'completion_completion_notify_time_window' CFG value.
+        This value is used to determine the time window for course completion email notifications (Email will 
+        not be sent if the time of completion is too old).
         Separated criteria checks from completion_regular_task into
         their own tasks (completion_criteria_*_check_task, where * is the criteria type).
-        Added 'completion_criteria_*_check_lasttime' CFG values.
-        Added completion_criteria_check_full_check_task ad-hoc task.
+        Tasks are designed to run 'as needed' rather than 'every minute'.
+        Added 'completion_criteria_*_check_lasttime' CFG values. These record the starting times of the last
+        successful run of the tasks. * = criteria type.
+        Added completion_criteria_check_full_check_task ad-hoc task. This task can perform a full check of all criteria.
       type: improved

@@ -98,7 +98,10 @@ Feature: Allow to mark course as completed without cron for activity completion 
     And I press "Save changes"
     When I am on the "Completion course" course page logged in as student1
     Then I should see "Status: Pending"
-    And I run the scheduled task "core\task\completion_regular_task"
+    And the following "tool_task > adhoc tasks" exist:
+      | classname                                      | seconds | hostname  | pid |
+      | \core\task\completion_criteria_grade_check_task | 0       | localhost | 0   |
+    And I run all adhoc tasks
     And I wait "1" seconds
     And I run the scheduled task "core\task\completion_regular_task"
     And I reload the page
@@ -117,7 +120,10 @@ Feature: Allow to mark course as completed without cron for activity completion 
     And I press "Save"
     When I am on the "Completion course" course page logged in as student1
     And I should see "Status: Pending"
-    And I run the scheduled task "core\task\completion_regular_task"
+    And the following "tool_task > adhoc tasks" exist:
+      | classname                                      | seconds | hostname  | pid |
+      | \core\task\completion_criteria_grade_check_task | 0       | localhost | 0   |
+    And I run all adhoc tasks
     And I wait "1" seconds
     And I run the scheduled task "core\task\completion_regular_task"
     And I reload the page
@@ -136,7 +142,10 @@ Feature: Allow to mark course as completed without cron for activity completion 
     And I should see "10.00" in the "Student First" "table_row"
     And I am on the "Completion course" course page logged in as student1
     And I should see "Status: Pending"
-    When I run the scheduled task "core\task\completion_regular_task"
+    And the following "tool_task > adhoc tasks" exist:
+      | classname                                      | seconds | hostname  | pid |
+      | \core\task\completion_criteria_grade_check_task | 0       | localhost | 0   |
+    And I run all adhoc tasks
     And I wait "1" seconds
     And I run the scheduled task "core\task\completion_regular_task"
     And I reload the page

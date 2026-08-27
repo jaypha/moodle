@@ -81,7 +81,7 @@ Feature: Award badges based on course completion
     # Completion cron won't mark the whole course completed unless the
     # individual criteria was marked completed more than a second ago. So
     # run it twice, first to mark the criteria and second for the course.
-    And I run the scheduled task "core\task\completion_regular_task"
+    And I run the scheduled task "core\task\completion_criteria_activity_check_task"
     And I wait "1" seconds
     And I run the scheduled task "core\task\completion_regular_task"
     When I run the scheduled task "core\task\badges_cron_task"
@@ -131,7 +131,7 @@ Feature: Award badges based on course completion
     # Completion cron won't mark the whole course completed unless the
     # individual criteria was marked completed more than a second ago. So
     # run it twice, first to mark the criteria and second for the course.
-    And I run the scheduled task "core\task\completion_regular_task"
+    And I run the scheduled task "core\task\completion_criteria_activity_check_task"
     And I wait "1" seconds
     And I run the scheduled task "core\task\completion_regular_task"
     When I run the scheduled task "core\task\badges_cron_task"
