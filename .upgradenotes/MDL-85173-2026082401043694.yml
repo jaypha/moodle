@@ -4,7 +4,9 @@ notes:
     - message: >-
         Added a task statistics utility, to record info about tasks when run,
         and displaying them in a report.
-        Added update_task_stats() to core\task\manager.php.
+        Task durations are recorded in the task_stats_pending table as tasks
+        finish, and aggregated into task_stats by the update_task_stats_task
+        scheduled task (via core\task\manager::update_task_stats()).
         Added task_stat_shaping_task scheduled task.
         Added task_stat to reports.
       type: improved

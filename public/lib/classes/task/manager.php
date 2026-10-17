@@ -80,13 +80,15 @@ class manager {
      */
     protected static ?int $mode = null;
 
-    /** @var array Task statistics temporary storage. */
-    protected static array $tempstats = [];
     /** @var float The starting time of the current task. */
     protected static float $runningtaskstarttime = 0.0;
 
     /** @var string Task statistics DB table. */
     public const TABLE_TASKSTATS = 'task_stats';
+    /** @var string DB table holding task durations not yet aggregated into the task statistics. */
+    public const TABLE_TASKSTATS_PENDING = 'task_stats_pending';
+    /** @var string Lock key used to serialise writes to the task statistics table. */
+    public const TASKSTATS_LOCK = 'core_task_stats';
 
     /**
      * Reset the state of the task manager.
@@ -1383,13 +1385,7 @@ class manager {
         $clock = \core\di::get(\core\clock::class);
 
         // Record the duration of the task for later processing.
-        self::$tempstats[] = [
-            'component' => $task->get_component(),
-            'classname' => self::get_canonical_class_name($task),
-            'starttime' => self::$runningtaskstarttime,
-            'finishtime' => microtime(true),
-            'type' => database_logger::TYPE_ADHOC,
-        ];
+        self::record_task_stat($task, database_logger::TYPE_ADHOC);
 
         // Finalise the log output.
         if ($finaliselog) {
@@ -1480,13 +1476,7 @@ class manager {
         $clock = \core\di::get(\core\clock::class);
 
         // Record the duration of the task for later processing.
-        self::$tempstats[] = [
-            'component' => $task->get_component(),
-            'classname' => self::get_canonical_class_name($task),
-            'starttime' => self::$runningtaskstarttime,
-            'finishtime' => microtime(true),
-            'type' => database_logger::TYPE_ADHOC,
-        ];
+        self::record_task_stat($task, database_logger::TYPE_ADHOC);
 
         // Finalise the log output.
         logmanager::finalise_log();
@@ -1518,13 +1508,7 @@ class manager {
         $classname = self::get_canonical_class_name($task);
 
         // Record the duration of the task for later processing.
-        self::$tempstats[] = [
-            'component' => $task->get_component(),
-            'classname' => $classname,
-            'starttime' => self::$runningtaskstarttime,
-            'finishtime' => microtime(true),
-            'type' => database_logger::TYPE_SCHEDULED,
-        ];
+        self::record_task_stat($task, database_logger::TYPE_SCHEDULED);
 
         // Finalise the log output.
         if ($finaliselog) {
@@ -1672,13 +1656,7 @@ class manager {
         $classname = self::get_canonical_class_name($task);
 
         // Record the duration of the task for later processing.
-        self::$tempstats[] = [
-            'component' => $task->get_component(),
-            'classname' => $classname,
-            'starttime' => self::$runningtaskstarttime,
-            'finishtime' => microtime(true),
-            'type' => database_logger::TYPE_SCHEDULED,
-        ];
+        self::record_task_stat($task, database_logger::TYPE_SCHEDULED);
 
         // Finalise the log output.
         logmanager::finalise_log();
@@ -2252,58 +2230,123 @@ class manager {
     }
 
     /**
-     * Update the task statistics in the database.
+     * Record the duration of a task that has just finished, for later aggregation by update_task_stats_task.
      *
-     * @param array|null $statdata
+     * Each duration is written as a separate row so concurrent cron processes never contend for the same record.
+     *
+     * @param task_base $task The task that has just finished.
+     * @param int $type The task type, one of database_logger::TYPE_SCHEDULED or database_logger::TYPE_ADHOC.
      */
-    public static function update_task_stats(?array $statdata = null) {
+    protected static function record_task_stat(task_base $task, int $type): void {
         global $DB;
 
-        if ($statdata === null) {
-            $statdata = self::$tempstats;
+        // The task was not started via task_starting(), so there is no meaningful duration.
+        if (self::$runningtaskstarttime == 0.0) {
+            return;
         }
 
-        // Read in the current stats and set up the processors.
-        $processors = [];
-        $records = $DB->get_records(self::TABLE_TASKSTATS);
-        foreach ($records as $record) {
-            $processors[$record->classname] = new stat_processor($record->count, $record->mean, $record->ssd, $record->sumduration);
+        try {
+            $DB->insert_record(self::TABLE_TASKSTATS_PENDING, [
+                'type' => $type,
+                'component' => $task->get_component(),
+                'classname' => self::get_canonical_class_name($task),
+                'duration' => microtime(true) - self::$runningtaskstarttime,
+            ], false);
+        } catch (\dml_exception $e) {
+            // Failing to record a statistic must never prevent the task from being marked as complete or failed.
+            debugging('Unable to record task statistic: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Aggregate pending task durations into the task statistics.
+     *
+     * Holds the TASKSTATS_LOCK lock while running so that it does not interleave with other writers of the
+     * statistics table (e.g. task_stat_shaping_task). Each batch is applied and removed from the pending table
+     * in a single transaction, so a failure part way through will not cause durations to be counted twice.
+     *
+     * @param int $batchsize Maximum number of pending records to process per transaction.
+     * @return bool False if the lock could not be obtained and nothing was processed.
+     */
+    public static function update_task_stats(int $batchsize = 1000): bool {
+        global $DB;
+
+        $lockfactory = \core\lock\lock_config::get_lock_factory('cron');
+        if (!$lock = $lockfactory->get_lock(self::TASKSTATS_LOCK, 0)) {
+            return false;
         }
 
-        $newrecords = [];
+        try {
+            // Process pending task statistics in batches.
+            do {
+                // Any rows inserted while we work are left for the next batch.
+                $pending = $DB->get_records(self::TABLE_TASKSTATS_PENDING, null, 'id ASC', '*', 0, $batchsize);
+                if (empty($pending)) {
+                    break;
+                }
 
-        // Apply data to the processors.
-        foreach ($statdata as $stat) {
-            $classname = $stat['classname'];
-            if (!array_key_exists($classname, $processors)) {
-                $processors[$classname] = new stat_processor();
-                $statobj = new \stdClass();
-                $statobj->component = $stat['component'];
-                $statobj->classname = $classname;
-                $statobj->type = $stat['type'];
-                $newrecords[] = $statobj;
-            }
-            $processors[$classname]->add_value($stat['finishtime'] - $stat['starttime']);
+                $transaction = $DB->start_delegated_transaction();
+
+                // Read in the current stats for the tasks in this batch and set up the processors.
+                $classnames = array_unique(array_column($pending, 'classname'));
+                $processors = [];
+                $records = $DB->get_records_list(self::TABLE_TASKSTATS, 'classname', $classnames);
+                foreach ($records as $record) {
+                    $processors[$record->classname] = new stat_processor(
+                        $record->count,
+                        $record->mean,
+                        $record->ssd,
+                        $record->sumduration,
+                        $record->maxduration,
+                    );
+                }
+
+                $newrecords = [];
+
+                // Apply data to the processors.
+                foreach ($pending as $stat) {
+                    $classname = $stat->classname;
+                    if (!array_key_exists($classname, $processors)) {
+                        $processors[$classname] = new stat_processor();
+                        $statobj = new \stdClass();
+                        $statobj->component = $stat->component;
+                        $statobj->classname = $classname;
+                        $statobj->type = $stat->type;
+                        $newrecords[] = $statobj;
+                    }
+                    $processors[$classname]->add_value($stat->duration);
+                }
+
+                // Get new calculated values from the processors and update records in the database.
+                foreach ($records as $record) {
+                    $processor = $processors[$record->classname];
+                    // Only update if it has actually changed.
+                    if ($processor->changed) {
+                        $processor->to_record($record);
+                        $DB->update_record_raw(self::TABLE_TASKSTATS, $record, true);
+                    }
+                }
+
+                // Get new calculated values from the processors for new tasks and insert records in the database.
+                if (count($newrecords)) {
+                    foreach ($newrecords as $record) {
+                        $processor = $processors[$record->classname];
+                        $processor->to_record($record);
+                    }
+                    $DB->insert_records(self::TABLE_TASKSTATS, $newrecords);
+                }
+
+                // We delete the processed records from the pending table. Because they are deleted by ID, there is no
+                // risk of deleting records that were inserted while we were working.
+                $DB->delete_records_list(self::TABLE_TASKSTATS_PENDING, 'id', array_keys($pending));
+
+                $transaction->allow_commit();
+            } while (count($pending) == $batchsize);
+        } finally {
+            $lock->release();
         }
 
-        // Get new calculated values from the processors and update records in the database.
-        foreach ($records as $record) {
-            $processor = $processors[$record->classname];
-            // Only update if it has actually changed.
-            if ($processor->changed) {
-                $processor->to_record($record);
-                $DB->update_record_raw(self::TABLE_TASKSTATS, $record, true);
-            }
-        }
-
-        // Get new calculated values from the processors for new tasks and insert records in the database.
-        if (count($newrecords)) {
-            foreach ($newrecords as $record) {
-                $processor = $processors[$record->classname];
-                $processor->to_record($record);
-            }
-            $DB->insert_records(self::TABLE_TASKSTATS, $newrecords);
-        }
+        return true;
     }
 
     /**

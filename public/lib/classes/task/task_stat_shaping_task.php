@@ -27,6 +27,9 @@ namespace core\task;
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class task_stat_shaping_task extends scheduled_task {
+    /** @var int  Lock timeout in seconds. */
+    public const LOCK_TIMEOUT = 60;
+
     /**
      * Get a descriptive name for this task.
      *
@@ -45,16 +48,26 @@ class task_stat_shaping_task extends scheduled_task {
         $shapingamount = (100 - $CFG->taskstat_shape_amount) / 100;
         $shapingthreshold = $CFG->taskstat_shape_threshold;
 
-        $records = $DB->get_records(manager::TABLE_TASKSTATS);
-        foreach ($records as $record) {
-            if ($record->count < $shapingthreshold) {
-                continue;
+        // Prevent update_task_stats_task from overwriting the shaped values with ones it read beforehand.
+        $lockfactory = \core\lock\lock_config::get_lock_factory('cron');
+        if (!$lock = $lockfactory->get_lock(manager::TASKSTATS_LOCK, self::LOCK_TIMEOUT)) {
+            throw new \moodle_exception('locktimeout');
+        }
+
+        try {
+            $records = $DB->get_records(manager::TABLE_TASKSTATS);
+            foreach ($records as $record) {
+                if ($record->count < $shapingthreshold) {
+                    continue;
+                }
+
+                $record->count = round($record->count * $shapingamount);
+                $record->sumduration *= $shapingamount;
+
+                $DB->update_record(manager::TABLE_TASKSTATS, $record, true);
             }
-
-            $record->count = round($record->count * $shapingamount);
-            $record->sumduration *= $shapingamount;
-
-            $DB->update_record(manager::TABLE_TASKSTATS, $record, true);
+        } finally {
+            $lock->release();
         }
     }
 }
