@@ -506,6 +506,16 @@ $tasks = array(
         'disabled' => false,
     ],
     [
+        'classname' => 'core\task\update_task_stats_task',
+        'blocking' => 0,
+        'minute' => '*/5',
+        'hour' => '*',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+        'disabled' => false,
+    ],
+    [
         'classname' => 'core\task\task_stat_shaping_task',
         'blocking' => 0,
         'minute' => 0,

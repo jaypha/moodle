@@ -210,5 +210,4 @@ if ($disable = $options['disable']) {
 
         \core\cron::run_inner_scheduled_task($task);
     }
-    \core\task\manager::update_task_stats();
 }

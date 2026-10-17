@@ -1633,6 +1633,7 @@ $string['taskstatscron'] = 'Background processing for statistics';
 $string['taskstatshaping'] = 'Task statistic shaping';
 $string['taskstatshaping_desc'] = 'Task statistic shaping (or halving, when the amount is 50%), is the practice of reducing the count and sum values of the statistics in order to give extra weight to newer average values.';
 $string['taskstatshapingtask'] = 'Task statistic shaping task';
+$string['taskupdatetaskstats'] = 'Update task statistics';
 $string['tasktagcron'] = 'Background processing for tags';
 $string['tasktempfilecleanup'] = 'Delete stale temp files';
 $string['taskupdategeoip2file'] = 'Update GeoIP file';

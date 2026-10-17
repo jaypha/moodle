@@ -3598,6 +3598,18 @@
         <INDEX NAME="classname" UNIQUE="true" FIELDS="classname"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="task_stats_pending" COMMENT="Task durations waiting to be aggregated into task_stats.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="type" TYPE="int" LENGTH="4" NOTNULL="true" SEQUENCE="false" COMMENT="The type of task. Scheduled task = 0; Adhoc task = 1."/>
+        <FIELD NAME="component" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="classname" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="duration" TYPE="number" LENGTH="20" NOTNULL="true" SEQUENCE="false" DECIMALS="10" COMMENT="Duration of the task run, in seconds"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+    </TABLE>
     <TABLE NAME="messageinbound_handlers" COMMENT="Inbound Message Handler definitions.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
