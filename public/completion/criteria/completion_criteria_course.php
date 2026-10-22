@@ -172,7 +172,9 @@ class completion_criteria_course extends completion_criteria {
                                 cc.timecompleted AS timecompleted
                            FROM {course_completion_criteria} cr
                            JOIN {course} c ON cr.course = c.id
-                           JOIN {course_completions} cc ON cc.course = cr.courseinstance
+                           JOIN {context} con ON con.instanceid = c.id
+                           JOIN {role_assignments} ra ON ra.contextid = con.id
+                           JOIN {course_completions} cc ON cc.course = cr.courseinstance AND cc.userid = ra.userid
                       LEFT JOIN {course_completion_crit_compl} ccc ON ccc.criteriaid = cr.id AND ccc.userid = cc.userid
                           WHERE cr.criteriatype = :criteriatype
                             AND c.enablecompletion = 1

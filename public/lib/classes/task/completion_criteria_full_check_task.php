@@ -20,10 +20,8 @@ namespace core\task;
  * Ad-hoc task wrapper to run a full course completion check with optional constraints.
  *
  * Custom data structure (stdClass) accepted:
- *  - timefrom: int (optional)
  *  - courseid: int (optional)
  *  - verbose: bool (optional)
- *  - noemail: bool (optional)
  *
  * @package   core
  * @author    Jason den Dulk <jasondendulk@catalyst-au.net>
@@ -31,8 +29,6 @@ namespace core\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class completion_criteria_full_check_task extends adhoc_task {
-    use completion_criteria_check_trait;
-
     /**
      * Get a descriptive name for this task (shown to admins).
      *
@@ -56,22 +52,10 @@ class completion_criteria_full_check_task extends adhoc_task {
             // Extract custom data.
             $data = $this->get_custom_data();
             $courseid = $data->courseid ?? null;
-            $timefrom = $data->timefrom ?? null;
             $verbose = $data->verbose ?? false;
-            $noemail = $data->noemail ?? false;
-
-            if ($noemail) {
-                if ($verbose) {
-                    mtrace('Suppressing emails during run.');
-                }
-                $CFG->noemeailever = 1;
-                // Disable all message apis as well (record which ones were enabled, to re-enable afterwards).
-                $enabledprocessors = $DB->get_records('message_processors', ['enabled' => 1]);
-                $DB->execute('UPDATE {message_processors} SET enabled =  0');
-            }
 
             if ($verbose) {
-                $constraints = ['timefrom' => $timefrom, 'courseid' => $courseid];
+                $constraints = ['courseid' => $courseid];
                 mtrace('Constraints: ' . json_encode($constraints));
             }
 
@@ -86,20 +70,8 @@ class completion_criteria_full_check_task extends adhoc_task {
                     if ($verbose) {
                         mtrace('Running ' . $object . '->cron()');
                     }
-                    $class->cron(timefrom: $timefrom, courseid: $courseid);
-                    // Set the time for future use of timefrom constraints.
-                    $this->update_timefrom($type);
+                    $class->cron(courseid: $courseid);
                 }
-            }
-
-            // Finally, re-enable emails if we disabled them.
-            if ($noemail) {
-                if ($verbose) {
-                    mtrace('Re-enabling emails.');
-                }
-                $CFG->noemeailever = 0;
-                [$insql, $inparams] = $DB->get_in_or_equal(array_column($enabledprocessors, 'id'));
-                $DB->execute('UPDATE {message_processors} SET enabled = 1 WHERE id ' . $insql, $inparams);
             }
         }
     }

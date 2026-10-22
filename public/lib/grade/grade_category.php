@@ -822,8 +822,15 @@ class grade_category extends grade_object {
 
             // If successful trigger a user_graded event.
             if ($success) {
-                if ($this->grade_item->itemtype == 'course') {
+                if (
+                    $this->grade_item->itemtype == 'course' &&
+                    $DB->record_exists(
+                        'course_completion_criteria',
+                        ['course' => $this->grade_item->courseid, 'criteriatype' => COMPLETION_CRITERIA_TYPE_GRADE]
+                    )
+                ) {
                     $task = new completion_criteria_grade_check_task();
+                    // TODO: Could we removethe userid criteria?
                     $task->set_custom_data(['userid' => $userid, 'courseid' => $this->grade_item->courseid]);
                     \core\task\manager::queue_adhoc_task($task, true);
                 }

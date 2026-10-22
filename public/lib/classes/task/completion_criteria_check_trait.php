@@ -34,7 +34,11 @@ trait completion_criteria_check_trait {
      */
     protected function get_timefrom(string $type): ?int {
         // We only want completions performed since the last task run. We need the start time so there are no gaps.
-        $laststarttime = get_config('core', 'completion_criteria_' . $type . '_check_lasttime');
+        $laststarttime = (int) get_config('core_completion', 'completion_criteria_' . $type . '_check_lasttime');
+        $now = time();
+        if ($laststarttime > $now) {
+            $laststarttime = $now;
+        }
         if ($laststarttime) {
             // We prefer to get the actual start time for the previous run, which we can get from the config, if
             // available. We subtract 1, just to be sure there are no gaps.

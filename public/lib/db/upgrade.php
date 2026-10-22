@@ -2423,7 +2423,6 @@ function xmldb_main_upgrade($oldversion) {
         // are not fully processed.
 
         $task = new \core\task\completion_criteria_full_check_task();
-        $task->set_custom_data(['noemail' => true]);
         \core\task\manager::queue_adhoc_task($task);
 
         // Main savepoint reached.

@@ -92,9 +92,7 @@ if ($form->is_cancelled()){
 
         // Schedule completion regular ad-hoc task for this course.
         $task = new \core\task\completion_criteria_full_check_task();
-        $task->set_custom_data([
-            'constraints' => ['courseid' => $id],
-        ]);
+        $task->set_custom_data(['courseid' => $id]);
         \core\task\manager::queue_adhoc_task($task, true);
 
         // Return to form (now unlocked).
@@ -153,9 +151,7 @@ if ($form->is_cancelled()){
 
     // Schedule completion regular ad-hoc task for this course to process the updated criteria.
     $task = new \core\task\completion_criteria_full_check_task();
-    $task->set_custom_data([
-        'constraints' => ['courseid' => $id],
-    ]);
+    $task->set_custom_data(['courseid' => $id]);
     \core\task\manager::queue_adhoc_task($task, true);
 
     // Trigger an event for course module completion changed.

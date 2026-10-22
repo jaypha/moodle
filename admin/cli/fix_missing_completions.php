@@ -41,10 +41,8 @@ require_once($CFG->libdir . '/clilib.php');
 [$options, $unrecognised] = cli_get_params(
     [
         'help' => false,
-        'timefrom' => null,
         'courseid' => null,
         'verbose' => false,
-        'no-email' => false,
     ],
     [
         'h' => 'help',
@@ -57,16 +55,14 @@ if ($unrecognised) {
     cli_error(get_string('cliunknowoption', 'admin', $unrecognised));
 }
 
-if ($options['help']) {
+if ($options['help'] || $options['courseid'] === true) { // Course ID = true means no value was provided.
     cli_writeln(<<<EOT
 Perform completion checks to fix any completion records that are not fully processed.
 
 Options:
   -h, --help              Print this help.
   -c, --courseid=ID       Limit the check to a single course.
-      --timefrom=TS       Only check records that were updated after this timestamp.
       --verbose           Give extra output.
-      --no-email          Do not send out emails for course completion.
 
 Examples:
   # Run a full completion check for all courses.
@@ -96,20 +92,12 @@ if ($options['courseid'] !== null) {
         cli_error("Course with id $courseid does not exist.");
     }
 }
-if ($options['timefrom'] !== null) {
-    $timefrom = $options['timefrom'];
-    if (!ctype_digit($timefrom)) {
-        cli_error("Invalid timefrom value '$timefrom'.");
-    }
-}
 
 // Create a full check task and attach its custom data.
 $task = new \core\task\completion_criteria_full_check_task();
 $task->set_custom_data((object) [
-    'timefrom' => $options['timefrom'],
     'courseid' => $options['courseid'],
     'verbose' => (bool) $options['verbose'],
-    'noemail' => (bool) $options['no-email'],
 ]);
 
 if ($options['verbose']) {

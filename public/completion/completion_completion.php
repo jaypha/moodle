@@ -176,10 +176,17 @@ class completion_completion extends data_object {
         $this->timecompleted = $timecomplete;
         // Save record.
         if ($result = $this->_save()) {
-            // Create an adhoc task to check any course completion criteria that depends on this course.
-            $task = new completion_criteria_course_check_task();
-            $task->set_custom_data(['userid' => $this->userid, 'courseinstance' => $this->course]);
-            \core\task\manager::queue_adhoc_task($task, true);
+            if (
+                $DB->record_exists(
+                    'course_completion_criteria',
+                    ['courseinstance' => $this->course, 'criteriatype' => COMPLETION_CRITERIA_TYPE_COURSE]
+                )
+            ) {
+                // Create an adhoc task to check any course completion criteria that depends on this course.
+                $task = new completion_criteria_course_check_task();
+                $task->set_custom_data(['userid' => $this->userid, 'courseinstance' => $this->course]);
+                \core\task\manager::queue_adhoc_task($task, true);
+            }
 
             $data = $this->get_record_data();
             \core\event\course_completed::create_from_completion($data)->trigger();

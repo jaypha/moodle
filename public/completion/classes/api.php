@@ -136,7 +136,7 @@ class api {
         ?array $userdata = null,
         ?int $timefrom = null,
         ?int $courseid = null
-    ) {
+    ): int {
         global $DB;
 
         // Get all users who meet this criteria
@@ -159,7 +159,6 @@ class api {
 
         $params = [
             'criteriatype' => COMPLETION_CRITERIA_TYPE_ACTIVITY,
-            'contextlevel' => CONTEXT_COURSE,
             'completionstate' => COMPLETION_COMPLETE,
             'completionstatepass' => COMPLETION_COMPLETE_PASS,
             'completionstatefail' => COMPLETION_COMPLETE_FAIL
